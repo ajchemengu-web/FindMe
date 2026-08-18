@@ -1,0 +1,24 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import 'core/router/app_router.dart';
+import 'theme/tokens.dart';
+
+void main() {
+  runApp(const ProviderScope(child: FindMeApp()));
+}
+
+class FindMeApp extends ConsumerWidget {
+  const FindMeApp({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final router = ref.watch(routerProvider);
+    return MaterialApp.router(
+      title: 'FindMe',
+      debugShowCheckedModeBanner: false,
+      theme: buildAppTheme(),
+      routerConfig: router,
+    );
+  }
+}
