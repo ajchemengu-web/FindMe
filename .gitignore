@@ -1,3 +1,11 @@
+# findme_backend_fastapi (Python backend)
+findme_backend_fastapi/__pycache__/
+findme_backend_fastapi/**/__pycache__/
+findme_backend_fastapi/.pytest_cache/
+findme_backend_fastapi/.venv/
+findme_backend_fastapi/venv/
+findme_backend_fastapi/.env
+
 # Miscellaneous
 *.class
 *.log

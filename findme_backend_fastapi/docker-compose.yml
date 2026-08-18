@@ -1,0 +1,83 @@
+# FindMe backend -- local dev stack. Replaces the hosted Supabase project (Postgres +
+# PostGIS + Auth + Storage + Edge Functions) with three containers this app owns:
+#   db    -- PostgreSQL + PostGIS (same extension the old schema depended on)
+#   minio -- S3-compatible object storage (replaces Supabase Storage's avatars/
+#            intel-photos buckets)
+#   api   -- this FastAPI service (replaces PostgREST + Edge Functions + Auth)
+#
+# Run: docker compose up --build
+# Then: docker compose exec api alembic upgrade head
+
+services:
+  db:
+    image: postgis/postgis:16-3.4
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: findme
+      POSTGRES_PASSWORD: findme
+      POSTGRES_DB: findme
+    ports:
+      - "5432:5432"
+    volumes:
+      - findme_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U findme"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: findme
+      MINIO_ROOT_PASSWORD: findme12345
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - findme_minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # One-shot: creates the avatars/intel-photos buckets on first boot (mirrors
+  # 20260702120800_storage.sql's bucket inserts -- avatars public, intel-photos private).
+  minio-init:
+    image: minio/mc:latest
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio:9000 findme findme12345 &&
+      mc mb -p local/avatars &&
+      mc mb -p local/intel-photos &&
+      mc anonymous set download local/avatars &&
+      mc anonymous set none local/intel-photos &&
+      exit 0
+      "
+
+  api:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://findme:findme@db:5432/findme
+      S3_ENDPOINT_URL: http://minio:9000
+      S3_PUBLIC_BASE_URL: http://localhost:9000/avatars
+    ports:
+      - "8000:8000"
+
+volumes:
+  findme_db_data:
+  findme_minio_data:
