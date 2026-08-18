@@ -12,8 +12,11 @@ export PATH="$PWD/.flutter-sdk/bin:$PATH"
 flutter config --enable-web --no-analytics
 flutter pub get
 
-# API_BASE_URL is a Vercel Environment Variable (Project Settings -> Environment
-# Variables) pointing at the deployed findme_backend_fastapi instance. Falls back to
-# the ApiClient's own localhost default (with a console warning) if unset -- fine for a
-# first deploy before the backend has a public URL, not fine for real use.
-flutter build web --release --dart-define=API_BASE_URL="${API_BASE_URL:-}"
+# Both are Vercel Environment Variables (Project Settings -> Environment Variables):
+# API_BASE_URL points at the deployed findme_backend_fastapi instance (falls back to
+# ApiClient's localhost default, with a console warning, if unset). GOOGLE_CLIENT_ID is
+# the Web OAuth Client ID from Google Cloud Console -> Credentials (the Google button
+# renders either way, but can't complete a sign-in until this is set).
+flutter build web --release \
+  --dart-define=API_BASE_URL="${API_BASE_URL:-}" \
+  --dart-define=GOOGLE_CLIENT_ID="${GOOGLE_CLIENT_ID:-}"

@@ -47,6 +47,20 @@ class AuthRepository {
     return loadProfile();
   }
 
+  Future<AppUser?> signInWithGoogle(String idToken) async {
+    final tokens = await _api.request<Map<String, dynamic>>(
+      '/auth/google',
+      method: 'POST',
+      auth: false,
+      body: {'id_token': idToken},
+    );
+    await TokenStore.instance.set(
+      accessToken: tokens!['access_token'] as String,
+      refreshToken: tokens['refresh_token'] as String,
+    );
+    return loadProfile();
+  }
+
   Future<AppUser?> signIn(String identifier, String password) async {
     final trimmed = normalizePhone(identifier.trim());
     final tokens = await _api.request<Map<String, dynamic>>(
