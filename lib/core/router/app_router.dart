@@ -8,7 +8,9 @@ import '../../features/auth/sign_in_screen.dart';
 import '../../features/auth/sign_up_screen.dart';
 import '../../features/auth/verify_phone_screen.dart';
 import '../../features/consent/people_screen.dart';
+import '../../features/devices/add_device_screen.dart';
 import '../../features/devices/situation_room_screen.dart';
+import '../../features/geofence/add_geofence_screen.dart';
 import '../../features/intel/intel_screen.dart';
 import '../../features/map/map_screen.dart';
 import '../../features/privacy/privacy_screen.dart';
@@ -55,6 +57,20 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/verify-phone',
         pageBuilder: (context, state) => const MaterialPage(fullscreenDialog: true, child: VerifyPhoneScreen()),
+      ),
+      GoRoute(
+        path: '/add-device',
+        pageBuilder: (context, state) => const MaterialPage(fullscreenDialog: true, child: AddDeviceScreen()),
+      ),
+      GoRoute(
+        path: '/add-geofence',
+        pageBuilder: (context, state) {
+          final extra = state.extra as Map<String, dynamic>?;
+          return MaterialPage(
+            fullscreenDialog: true,
+            child: AddGeofenceScreen(deviceId: extra?['deviceId'] as String?, nickname: extra?['nickname'] as String?),
+          );
+        },
       ),
     ],
   );
