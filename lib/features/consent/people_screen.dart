@@ -6,6 +6,8 @@ import 'package:intl/intl.dart';
 import '../../core/models/models.dart';
 import '../../theme/tokens.dart';
 import '../auth/auth_controller.dart';
+import '../devices/situation_room_screen.dart' show situationRoomProvider;
+import '../map/map_screen.dart' show mapDataProvider;
 import 'consent_repository.dart';
 
 final consentRepositoryProvider = Provider((ref) => ConsentRepository());
@@ -37,9 +39,15 @@ class PeopleScreen extends ConsumerStatefulWidget {
 }
 
 class _PeopleScreenState extends ConsumerState<PeopleScreen> {
+  void _invalidateDeviceDerivedProviders() {
+    ref.invalidate(peopleDataProvider);
+    ref.invalidate(situationRoomProvider);
+    ref.invalidate(mapDataProvider);
+  }
+
   Future<void> _respond(String consentId, String decision) async {
     await ref.read(consentRepositoryProvider).respondToRequest(consentId, decision);
-    ref.invalidate(peopleDataProvider);
+    _invalidateDeviceDerivedProviders();
   }
 
   @override
@@ -62,7 +70,7 @@ class _PeopleScreenState extends ConsumerState<PeopleScreen> {
                     style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8)),
                     onPressed: () async {
                       await context.push('/add-device');
-                      ref.invalidate(peopleDataProvider);
+                      _invalidateDeviceDerivedProviders();
                     },
                     child: const Text('+ Add', style: TextStyle(fontSize: 12)),
                   ),

@@ -4,7 +4,7 @@ import 'package:intl/intl.dart';
 
 import '../../core/models/models.dart';
 import '../../theme/tokens.dart';
-import '../devices/situation_room_screen.dart' show alertsRepositoryProvider;
+import '../devices/situation_room_screen.dart' show alertsRepositoryProvider, situationRoomProvider;
 
 final alertsListProvider = FutureProvider.autoDispose<List<Alert>>((ref) async {
   try {
@@ -27,6 +27,7 @@ class AlertsScreen extends ConsumerWidget {
       // Same as load: swallowed in the original, ported as-is.
     } finally {
       ref.invalidate(alertsListProvider);
+      ref.invalidate(situationRoomProvider); // unread count shown there needs to move too
     }
   }
 
