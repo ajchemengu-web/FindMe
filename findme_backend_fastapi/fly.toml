@@ -1,0 +1,43 @@
+# Fly.io config. Unlike Render's blueprint, secrets never live in this file (it's
+# committed to git) -- set them with `fly secrets set` after `fly launch`/`fly deploy`.
+# From this directory (findme_backend_fastapi/):
+#
+#   fly launch --no-deploy          # creates/renames the app, pick a unique name & region
+#   fly postgres create             # provisions a Postgres cluster (pick the free/dev tier)
+#   fly postgres attach <db-app>    # wires DATABASE_URL into this app's secrets automatically
+#   fly secrets set JWT_SECRET=$(openssl rand -hex 32) CRON_SHARED_SECRET=$(openssl rand -hex 32)
+#   fly deploy
+#
+# `fly postgres attach` sets a plain postgres:// DATABASE_URL -- app/config.py already
+# normalizes that to postgresql+asyncpg:// at startup, so no manual edit needed.
+# PostGIS itself is enabled by the app's own Alembic migration (entrypoint.sh runs
+# `alembic upgrade head` on every boot), not by anything here.
+#
+# app name below is a placeholder -- `fly launch` will prompt you to change it if
+# "findme-backend" is already taken globally.
+app = "findme-backend"
+primary_region = "iad"
+
+[build]
+
+[env]
+  ENV = "prod"
+  CORS_ORIGINS = "*"
+  SMS_PROVIDER = "console"
+  MPESA_SHORTCODE = "174379"
+  MPESA_BASE_URL = "https://sandbox.safaricom.co.ke"
+  # Set after your first deploy, once you know this app's assigned *.fly.dev URL (or a
+  # custom domain) -- Daraja's M-Pesa callback needs it.
+  # PUBLIC_BASE_URL = "https://findme-backend.fly.dev"
+
+[http_service]
+  internal_port = 8000
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+
+[[vm]]
+  memory = "512mb"
+  cpu_kind = "shared"
+  cpus = 1

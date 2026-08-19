@@ -1,0 +1,5 @@
+# entrypoint.sh runs inside a Linux container -- CRLF line endings would break its
+# shebang (`#!/usr/bin/env sh\r` fails to resolve). Force LF regardless of the
+# checkout platform's core.autocrlf setting.
+*.sh text eol=lf
+Dockerfile text eol=lf

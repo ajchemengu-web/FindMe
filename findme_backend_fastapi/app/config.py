@@ -85,6 +85,19 @@ class Settings(BaseSettings):
             return [origin.strip() for origin in v.split(",") if origin.strip()]
         return v
 
+    @field_validator("database_url", mode="before")
+    @classmethod
+    def _ensure_asyncpg_driver(cls, v: object) -> object:
+        # Render/Fly/Heroku-style managed Postgres hands out a plain postgres:// or
+        # postgresql:// URL with no driver -- SQLAlchemy's async engine needs the
+        # +asyncpg suffix explicitly. Only rewrites when no driver is already present,
+        # so a local .env's postgresql+asyncpg://... passes through unchanged.
+        if isinstance(v, str) and v.startswith("postgres://"):
+            return "postgresql+asyncpg://" + v[len("postgres://") :]
+        if isinstance(v, str) and v.startswith("postgresql://"):
+            return "postgresql+asyncpg://" + v[len("postgresql://") :]
+        return v
+
 
 @lru_cache
 def get_settings() -> Settings:

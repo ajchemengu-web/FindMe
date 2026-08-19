@@ -1,0 +1,81 @@
+# Render Blueprint -- import this repo at https://dashboard.render.com/select-repo?type=blueprint
+# and Render will provision both services below from this file. See
+# findme_backend_fastapi/README.md for what each env var does.
+databases:
+  - name: findme-db
+    plan: free
+    databaseName: findme
+    user: findme
+    # PostGIS is enabled by the app's own Alembic migration (`create extension if not
+    # exists postgis`), run automatically by entrypoint.sh on first boot -- nothing to
+    # do here.
+
+services:
+  - type: web
+    name: findme-backend
+    runtime: docker
+    dockerfilePath: ./findme_backend_fastapi/Dockerfile
+    dockerContext: ./findme_backend_fastapi
+    plan: free
+    healthCheckPath: /healthz
+    envVars:
+      - key: ENV
+        value: prod
+      - key: DATABASE_URL
+        fromDatabase:
+          name: findme-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: CRON_SHARED_SECRET
+        generateValue: true
+      - key: CORS_ORIGINS
+        value: "*"
+      - key: SMS_PROVIDER
+        value: console
+      - key: MPESA_SHORTCODE
+        value: "174379"
+      - key: MPESA_BASE_URL
+        value: https://sandbox.safaricom.co.ke
+      # Set once you know this service's assigned onrender.com URL (or a custom
+      # domain) -- Daraja's M-Pesa callback needs it. Render dashboard -> this
+      # service -> Environment.
+      - key: PUBLIC_BASE_URL
+        sync: false
+      # Everything below is a real external credential this blueprint can't generate
+      # for you -- `sync: false` just reserves the key in the dashboard so you can
+      # fill it in later. The app runs fine with these unset (see each field's default
+      # in app/config.py); features gated on them stay in their "not configured yet"
+      # state until you do.
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: ACLED_API_KEY
+        sync: false
+      - key: NEWS_API_KEY
+        sync: false
+      - key: TWILIO_ACCOUNT_SID
+        sync: false
+      - key: TWILIO_AUTH_TOKEN
+        sync: false
+      - key: TWILIO_FROM_NUMBER
+        sync: false
+      - key: MPESA_CONSUMER_KEY
+        sync: false
+      - key: MPESA_CONSUMER_SECRET
+        sync: false
+      - key: MPESA_PASSKEY
+        sync: false
+      - key: S3_ENDPOINT_URL
+        sync: false
+      - key: S3_REGION
+        sync: false
+      - key: S3_ACCESS_KEY
+        sync: false
+      - key: S3_SECRET_KEY
+        sync: false
+      - key: S3_AVATARS_BUCKET
+        sync: false
+      - key: S3_INTEL_PHOTOS_BUCKET
+        sync: false
+      - key: S3_PUBLIC_BASE_URL
+        sync: false
