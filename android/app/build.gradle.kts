@@ -6,7 +6,13 @@ plugins {
 
 android {
     namespace = "com.findme.findme_flutter"
-    compileSdk = flutter.compileSdkVersion
+    // Pinned rather than flutter.compileSdkVersion -- that resolves to a plain
+    // integer (37 on this Flutter version), but the locally installed SDK Manager
+    // package for that level is named "android-37.0" (newer Android releases moved to
+    // major.minor API levels), so Gradle's "android-37" lookup fails to find it even
+    // though the platform IS installed. 36 is present as a clean, unambiguous match.
+    // If you've since installed a plain "android-37" platform, feel free to bump this.
+    compileSdk = 36
     ndkVersion = flutter.ndkVersion
 
     compileOptions {

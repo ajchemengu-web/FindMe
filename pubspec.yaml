@@ -38,7 +38,14 @@ dependencies:
   flutter_riverpod: ^2.6.1
   riverpod: ^2.6.1
   dio: ^5.11.0
-  flutter_secure_storage: ^11.0.0
+  # Pinned below 11.x: that hard-requires Android compileSdk 37 in its own
+  # build.gradle (unrelated to Flutter's own compileSdk default), which the local
+  # Android SDK only has installed under a differently-named "android-37.0" package --
+  # a real Gradle target-lookup failure, not a Flutter/project misconfiguration.
+  # 9.2.4 (compileSdk 34) hit a separate transitive win32 conflict with share_plus on
+  # Windows; 10.0.0 (compileSdk 36, matching android/app/build.gradle.kts's pin) has
+  # neither problem and has an identical read/write/delete API (verified).
+  flutter_secure_storage: ^10.0.0
   flutter_map: ^8.3.1
   latlong2: ^0.10.1
   geolocator: ^14.0.3
