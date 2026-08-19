@@ -47,6 +47,15 @@ class MapScreen extends ConsumerStatefulWidget {
   ConsumerState<MapScreen> createState() => _MapScreenState();
 }
 
+// CartoDB's dark_all raster tiles are natively sharp up to zoom 19 (confirmed against
+// the live tile server); a couple of levels beyond that the server still returns valid
+// tiles (over-zoomed/upscaled), which is normal map-app behavior for inspecting an
+// exact pin position closely -- letting the camera go a bit past native resolution
+// rather than hard-stopping at it.
+const _minZoom = 2.0;
+const _maxNativeZoom = 19;
+const _maxZoom = 21.0;
+
 class _MapScreenState extends ConsumerState<MapScreen> {
   final _mapController = MapController();
   VisibleDeviceLocation? _selected;
@@ -79,9 +88,17 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       _mapController.fitCamera(CameraFit.coordinates(
         coordinates: points,
         padding: const EdgeInsets.fromLTRB(60, 80, 60, 180),
-        maxZoom: 12,
+        // Was 12 (city/regional scale) -- for the common case of one or a handful of
+        // nearby devices, that left the initial view much further out than useful.
+        // 16 is roughly street-level, a far more usable default close-up.
+        maxZoom: 16,
       ));
     });
+  }
+
+  void _zoomBy(double delta) {
+    final camera = _mapController.camera;
+    _mapController.move(camera.center, (camera.zoom + delta).clamp(_minZoom, _maxZoom));
   }
 
   @override
@@ -137,10 +154,24 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                         options: MapOptions(
                           initialCenter: const LatLng(20, 10),
                           initialZoom: 2,
+                          minZoom: _minZoom,
+                          maxZoom: _maxZoom,
                           onTap: (_, _) => _clearSelection(),
                         ),
                         children: [
-                          TileLayer(urlTemplate: mapTileUrlDark, userAgentPackageName: 'com.findme.findme_flutter'),
+                          TileLayer(
+                            urlTemplate: mapTileUrlDark,
+                            userAgentPackageName: 'com.findme.findme_flutter',
+                            // Fetches sharp @2x tiles on high-DPI screens instead of
+                            // upscaled 1x ones -- the urlTemplate's {r} placeholder was
+                            // already there but silently resolved to nothing without
+                            // this flag, so every device was getting soft, non-retina
+                            // tiles regardless of its actual screen density.
+                            retinaMode: true,
+                            maxNativeZoom: _maxNativeZoom,
+                            maxZoom: _maxZoom,
+                            minZoom: _minZoom,
+                          ),
                           CircleLayer(
                             circles: [
                               for (final z in d.zones)
@@ -180,6 +211,15 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                           ),
                         ],
                       ),
+                      // Right-center rather than a corner -- the bottom is already
+                      // contested by the legend/selected-device card (both full-width
+                      // when shown) and the top by the empty-state banner.
+                      Positioned(
+                        right: 16,
+                        top: 0,
+                        bottom: 0,
+                        child: Center(child: _ZoomControls(onZoomIn: () => _zoomBy(1), onZoomOut: () => _zoomBy(-1))),
+                      ),
                       if (d.devices.isEmpty && d.zones.isEmpty)
                         Positioned(
                           top: 16,
@@ -216,6 +256,49 @@ class _MapScreenState extends ConsumerState<MapScreen> {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Explicit +/- zoom buttons -- previously the only way to zoom was pinch/scroll,
+/// which isn't always discoverable (especially on desktop/web without touch or a
+/// precise trackpad), and there was no visible affordance suggesting the map could be
+/// zoomed in further than wherever the initial auto-fit landed.
+class _ZoomControls extends StatelessWidget {
+  final VoidCallback onZoomIn;
+  final VoidCallback onZoomOut;
+  const _ZoomControls({required this.onZoomIn, required this.onZoomOut});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xEB14181D),
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        border: Border.all(color: AppColors.line),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _ZoomButton(icon: Icons.add, onTap: onZoomIn),
+          Container(height: 1, color: AppColors.line),
+          _ZoomButton(icon: Icons.remove, onTap: onZoomOut),
+        ],
+      ),
+    );
+  }
+}
+
+class _ZoomButton extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback onTap;
+  const _ZoomButton({required this.icon, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      child: SizedBox(width: 36, height: 36, child: Icon(icon, color: AppColors.ink2, size: 18)),
     );
   }
 }
