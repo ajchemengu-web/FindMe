@@ -22,6 +22,15 @@ class MyConsents {
   MyConsents({required this.incoming, required this.outgoingPending, required this.active});
 }
 
+class InviteResult {
+  final String status; // "requested" | "invited"
+  final String? displayName;
+  InviteResult({required this.status, required this.displayName});
+
+  factory InviteResult.fromJson(Map<String, dynamic> j) =>
+      InviteResult(status: j['status'] as String, displayName: j['display_name'] as String?);
+}
+
 /// Ported 1:1 from findme_app/lib/consent.ts.
 class ConsentRepository {
   final _api = ApiClient.instance;
@@ -38,6 +47,16 @@ class ConsentRepository {
         method: 'POST',
         body: {'grantor_id': grantorId, 'scope': scope, 'expires_at': expiresAt},
       );
+
+  /// POST /consents/invite -- phone-only (see the backend router's docstring for why
+  /// email isn't accepted). If the contact already has a FindMe account, this creates
+  /// a real consent request immediately (status "requested"); otherwise it sends an
+  /// SMS invite and the request is created automatically once they sign up with this
+  /// phone number (status "invited").
+  Future<InviteResult> inviteOrRequest(String contact, {required String scope}) async {
+    final json = await _api.request<Map<String, dynamic>>('/consents/invite', method: 'POST', body: {'contact': contact, 'scope': scope});
+    return InviteResult.fromJson(json!);
+  }
 
   Future<void> respondToRequest(String consentId, String decision) =>
       _api.request('/consents/$consentId', method: 'PATCH', body: {'status': decision});

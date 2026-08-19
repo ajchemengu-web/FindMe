@@ -15,6 +15,7 @@ from app.models.device import Device
 from app.models.geofence import Geofence, GeofenceEvent
 from app.models.location import LocationPing
 from app.models.mpesa import MpesaTransaction
+from app.models.pending_invite import PendingInvite
 from app.models.phone_otp import PhoneOtp
 from app.models.referral import Referral, ReferralCommission
 from app.models.refresh_token import RefreshToken
@@ -31,6 +32,7 @@ __all__ = [
     "GeofenceEvent",
     "LocationPing",
     "MpesaTransaction",
+    "PendingInvite",
     "PhoneOtp",
     "Referral",
     "ReferralCommission",

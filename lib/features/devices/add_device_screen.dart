@@ -52,7 +52,8 @@ class _AddDeviceScreenState extends ConsumerState<AddDeviceScreen> {
   }
 
   Future<void> _sendRequest() async {
-    if (_contact.text.trim().isEmpty) {
+    final contact = _contact.text.trim();
+    if (contact.isEmpty) {
       setState(() => _error = 'Enter their phone number, email, or username.');
       return;
     }
@@ -60,20 +61,34 @@ class _AddDeviceScreenState extends ConsumerState<AddDeviceScreen> {
       _submitting = true;
       _error = null;
     });
+    final repo = ConsentRepository();
     try {
-      final repo = ConsentRepository();
-      final found = await repo.findProfileForInvite(_contact.text.trim());
-      if (found == null) {
+      final found = await repo.findProfileForInvite(contact);
+      if (found != null) {
+        await repo.requestConsent(found.id, scope: _scope);
         setState(() {
-          _error = "No FindMe account found for that contact. They'll need to sign up first before you can send a request.";
-          _submitting = false;
+          _doneMessage =
+              "Request sent to ${found.displayName ?? found.username}. Nothing will appear on your map until they approve it from their own People & Devices screen.";
+          _step = _Step.done;
         });
         return;
       }
-      await repo.requestConsent(found.id, scope: _scope);
+
+      // No existing account. Only a phone number can be invited by SMS -- there's no
+      // email-sending capability in the backend yet.
+      if (!_looksLikePhone(contact)) {
+        setState(() {
+          _error = "No FindMe account found for that contact. They'll need to sign up first, or try their phone number "
+              "instead so we can invite them by text.";
+        });
+        return;
+      }
+
+      final result = await repo.inviteOrRequest(contact, scope: _scope);
       setState(() {
-        _doneMessage =
-            "Request sent to ${found.displayName ?? found.username}. Nothing will appear on your map until they approve it from their own People & Devices screen.";
+        _doneMessage = result.status == 'requested'
+            ? "Request sent to ${result.displayName ?? 'them'}. Nothing will appear on your map until they approve it from their own People & Devices screen."
+            : "They don't have FindMe yet, so we've texted them an invite. Your request will be waiting for them the moment they sign up with this phone number.";
         _step = _Step.done;
       });
     } catch (e) {
@@ -81,6 +96,12 @@ class _AddDeviceScreenState extends ConsumerState<AddDeviceScreen> {
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
+  }
+
+  bool _looksLikePhone(String s) {
+    if (s.contains('@')) return false;
+    final digits = s.replaceAll(RegExp(r'[^0-9]'), '');
+    return digits.length >= 7;
   }
 
   @override
@@ -170,7 +191,12 @@ class _AddDeviceScreenState extends ConsumerState<AddDeviceScreen> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             const _FieldLabel('Their phone, email, or username'),
-            TextField(controller: _contact, decoration: const InputDecoration(hintText: 'Used to find their FindMe account'), autocorrect: false),
+            TextField(controller: _contact, decoration: const InputDecoration(hintText: 'Phone, email, or username'), autocorrect: false),
+            const SizedBox(height: 4),
+            const Text(
+              "Have an account already? We'll find it. No account yet? Enter their phone number and we'll text them an invite.",
+              style: TextStyle(color: AppColors.ink3, fontSize: 11, height: 1.3),
+            ),
             const SizedBox(height: 14),
             const _FieldLabel("What you're asking to see"),
             Row(

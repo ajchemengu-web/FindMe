@@ -61,6 +61,11 @@ class Settings(BaseSettings):
     # (mirrors mpesa-stk-push's `${SUPABASE_URL}/functions/v1/mpesa-stk-callback`).
     public_base_url: str = "http://localhost:8000"
 
+    # Publicly reachable base URL for the *frontend* (the Flutter app, e.g. its Vercel
+    # domain) -- used only to build a sign-up link inside invite SMS text. Left as "" is
+    # fine; the SMS just omits the link.
+    frontend_url: str = ""
+
     # ---------- object storage (replaces Supabase Storage) ----------
     s3_endpoint_url: str = "http://localhost:9000"  # MinIO locally; unset/omit for real AWS S3
     s3_region: str = "us-east-1"

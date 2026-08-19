@@ -15,6 +15,22 @@ class ConsentRespond(BaseModel):
     status: Literal["active", "denied"]
 
 
+class InviteRequest(BaseModel):
+    # A phone number -- see routers/consents.py's /invite for why email isn't accepted
+    # yet (no email-sending capability exists in this service).
+    contact: str
+    scope: Literal["precise", "city"] = "precise"
+
+
+class InviteResponse(BaseModel):
+    # "requested": contact already had an account, a real Consent row was created
+    # immediately (identical to POST /consents). "invited": no account existed yet, an
+    # SMS invite was sent and the request will be created automatically when they sign
+    # up with this phone number.
+    status: Literal["requested", "invited"]
+    display_name: str | None = None
+
+
 class ConsentOut(BaseModel):
     id: uuid.UUID
     grantor_id: uuid.UUID

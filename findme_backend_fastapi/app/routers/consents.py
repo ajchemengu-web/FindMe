@@ -6,15 +6,23 @@ consent-notify/index.ts's push-notification side effects.
 """
 import uuid
 
-from fastapi import APIRouter, status
+from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import or_, select
 
-from app.core.errors import ForbiddenError, NotFoundError
+from app.core.errors import AppError, ForbiddenError, NotFoundError
 from app.deps import CurrentUser, DbSession
 from app.models.consent import Consent, ConsentAuditLog
 from app.models.user import User
-from app.schemas.consent import ConsentAuditLogOut, ConsentCreate, ConsentOut, ConsentRespond, MyConsentsOut
-from app.services import authz
+from app.schemas.consent import (
+    ConsentAuditLogOut,
+    ConsentCreate,
+    ConsentOut,
+    ConsentRespond,
+    InviteRequest,
+    InviteResponse,
+    MyConsentsOut,
+)
+from app.services import authz, invites
 from app.services.push import notify_user
 
 router = APIRouter(prefix="/consents", tags=["consents"])
@@ -66,6 +74,34 @@ async def request_consent(payload: ConsentCreate, current_user: CurrentUser, db:
     )
     await db.commit()
     return ConsentOut.model_validate(consent)
+
+
+@router.post("/invite", response_model=InviteResponse, status_code=status.HTTP_201_CREATED)
+async def invite_or_request(payload: InviteRequest, current_user: CurrentUser, db: DbSession) -> InviteResponse:
+    """"Someone else" step of Add to Watch List, for a phone number that may or may not
+    have a FindMe account yet. Ports app/services/invites.py's find-or-invite logic --
+    new capability, no Supabase-era equivalent (the original app could only target an
+    existing account via GET /auth/lookup + POST /consents)."""
+    if "@" in payload.contact:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Email invites aren't supported yet -- invite by phone number instead.")
+
+    try:
+        status_str, existing = await invites.invite_or_request(db, inviter=current_user, contact=payload.contact, scope=payload.scope)
+        await db.commit()
+    except AppError as exc:
+        await db.rollback()
+        raise HTTPException(exc.status_code, exc.message)
+
+    if status_str == "requested" and existing is not None:
+        await notify_user(
+            db, existing.id, "New watch-list request",
+            "Someone wants to add your device to their watch list. Review and respond.",
+            {"type": "consent"},
+        )
+        await db.commit()
+        return InviteResponse(status="requested", display_name=existing.display_name or existing.username)
+
+    return InviteResponse(status="invited")
 
 
 @router.patch("/{consent_id}", response_model=ConsentOut)

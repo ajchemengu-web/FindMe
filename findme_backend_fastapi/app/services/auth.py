@@ -26,6 +26,7 @@ from app.core.security import (
 from app.models.referral import Referral
 from app.models.refresh_token import RefreshToken
 from app.models.user import User
+from app.services import invites
 from app.services.referral_codes import generate_referral_code
 
 
@@ -96,6 +97,12 @@ async def signup(
         referrer = await db.scalar(select(User).where(User.referral_code == supplied))
         if referrer is not None and referrer.id != user.id:
             db.add(Referral(id=uuid.uuid4(), referrer_id=referrer.id, referred_id=user.id, referral_code=supplied))
+
+    # ---------- pending-invite linking -- new, no Supabase-era equivalent ----------
+    # Same additive philosophy as referral linking above: consumes any unconsumed
+    # invites for this phone number into real consent requests, never blocks signup.
+    if phone:
+        await invites.link_pending_invites(db, user)
 
     await db.flush()
     return user
