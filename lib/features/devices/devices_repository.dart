@@ -82,4 +82,7 @@ class DevicesRepository {
     final json = await _api.request<List<dynamic>>('/devices/$deviceId/geofences');
     return (json ?? []).map((e) => Geofence.fromJson(e as Map<String, dynamic>)).where((g) => g.active).toList();
   }
+
+  Future<void> createGeofence(String deviceId, {required String name, required double lon, required double lat, required int radiusM}) =>
+      _api.request('/devices/$deviceId/geofences', method: 'POST', body: {'name': name, 'lon': lon, 'lat': lat, 'radius_m': radiusM});
 }
