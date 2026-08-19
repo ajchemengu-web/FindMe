@@ -13,6 +13,7 @@ from google.auth.transport import requests as google_requests
 from google.oauth2 import id_token as google_id_token
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from starlette.concurrency import run_in_threadpool
 
 from app.config import get_settings
 from app.core.security import (
@@ -144,8 +145,14 @@ async def google_sign_in(db: AsyncSession, raw_id_token: str) -> User:
         raise AuthError("Google sign-in is not configured on this server yet.")
 
     try:
-        claims = google_id_token.verify_oauth2_token(
-            raw_id_token, google_requests.Request(), settings.google_client_id
+        # verify_oauth2_token does a synchronous HTTP call (fetching Google's public
+        # certs, cached after the first request) -- run_in_threadpool keeps that off
+        # the event loop, same pattern app/services/storage.py uses for boto3.
+        claims = await run_in_threadpool(
+            google_id_token.verify_oauth2_token,
+            raw_id_token,
+            google_requests.Request(),
+            settings.google_client_id,
         )
     except (ValueError, GoogleAuthError):
         raise AuthError("Invalid Google sign-in token.") from None
