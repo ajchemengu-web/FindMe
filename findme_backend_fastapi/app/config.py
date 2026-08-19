@@ -5,10 +5,10 @@ Everything here has a Supabase-era equivalent noted in the comment so the migrat
 from findme_backend (Supabase) to this service is traceable field-by-field.
 """
 from functools import lru_cache
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import Field, field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
 class Settings(BaseSettings):
@@ -74,7 +74,11 @@ class Settings(BaseSettings):
     expo_push_url: str = "https://exp.host/--/api/v2/push/send"
 
     # ---------- CORS ----------
-    cors_origins: list[str] = Field(default_factory=lambda: ["*"])
+    # NoDecode: pydantic-settings otherwise JSON-decodes any env var mapped to a list
+    # field before this validator ever runs, so a plain CORS_ORIGINS=* (not valid JSON)
+    # would fail to even load Settings -- NoDecode keeps it a raw string and leaves the
+    # comma-split logic below as the only parsing step.
+    cors_origins: Annotated[list[str], NoDecode] = Field(default_factory=lambda: ["*"])
 
     @field_validator("cors_origins", mode="before")
     @classmethod
