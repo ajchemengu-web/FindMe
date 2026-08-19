@@ -3,20 +3,35 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import '../../core/location_service.dart';
 import '../../core/models/models.dart';
 import '../../theme/tokens.dart';
 import '../auth/auth_controller.dart';
+import '../devices/devices_repository.dart';
 import '../devices/situation_room_screen.dart' show situationRoomProvider;
 import '../map/map_screen.dart' show mapDataProvider;
 import 'consent_repository.dart';
 
 final consentRepositoryProvider = Provider((ref) => ConsentRepository());
+final devicesRepositoryForPeopleProvider = Provider((ref) => DevicesRepository());
 
 class PeopleData {
   final List<Device> devices;
   final List<Consent> incoming;
   final List<Consent> outgoingPending;
-  PeopleData({required this.devices, required this.incoming, required this.outgoingPending});
+  final List<Consent> active;
+  PeopleData({required this.devices, required this.incoming, required this.outgoingPending, required this.active});
+
+  /// The consent that grants `currentUserId` visibility into `device` (i.e. where
+  /// `currentUserId` is the grantee and `device`'s owner is the grantor) -- null if
+  /// somehow not backed by an active grant. `active` mixes both directions (people
+  /// watching you and people you're watching), so both ids matter, not just one.
+  Consent? activeConsentFor(Device device, String currentUserId) {
+    for (final c in active) {
+      if (c.grantorId == device.ownerId && c.granteeId == currentUserId) return c;
+    }
+    return null;
+  }
 }
 
 final peopleDataProvider = FutureProvider.autoDispose<PeopleData>((ref) async {
@@ -24,7 +39,7 @@ final peopleDataProvider = FutureProvider.autoDispose<PeopleData>((ref) async {
   final results = await Future.wait([repo.fetchVisibleDevices(), repo.fetchMyConsents()]);
   final devices = results[0] as List<Device>;
   final consents = results[1] as MyConsents;
-  return PeopleData(devices: devices, incoming: consents.incoming, outgoingPending: consents.outgoingPending);
+  return PeopleData(devices: devices, incoming: consents.incoming, outgoingPending: consents.outgoingPending, active: consents.active);
 });
 
 /// Ported 1:1 from findme_app/app/(app)/people.tsx. An incoming consent request shows
@@ -47,6 +62,69 @@ class _PeopleScreenState extends ConsumerState<PeopleScreen> {
 
   Future<void> _respond(String consentId, String decision) async {
     await ref.read(consentRepositoryProvider).respondToRequest(consentId, decision);
+    _invalidateDeviceDerivedProviders();
+  }
+
+  Future<bool> _confirm({required String title, required String body, required String confirmLabel}) async {
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        title: Text(title, style: const TextStyle(color: AppColors.ink, fontSize: 15)),
+        content: Text(body, style: const TextStyle(color: AppColors.ink2, fontSize: 13, height: 1.4)),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text(confirmLabel, style: const TextStyle(color: AppColors.critical, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+    return result ?? false;
+  }
+
+  /// Owner removing a device they registered -- stops tracking it and (server-side)
+  /// deletes its location history.
+  Future<void> _removeOwnDevice(Device device) async {
+    final ok = await _confirm(
+      title: 'Remove "${device.nickname}"?',
+      body: 'This stops tracking it and deletes its location history. This cannot be undone.',
+      confirmLabel: 'Remove',
+    );
+    if (!ok) return;
+    await ref.read(devicesRepositoryForPeopleProvider).deleteDevice(device.id);
+    _invalidateDeviceDerivedProviders();
+  }
+
+  /// Watcher giving up their own access to someone else's device -- ported from
+  /// lib/consent.ts's revokeConsent(), never wired to any UI in the original app.
+  Future<void> _revokeAccess(Device device, String consentId) async {
+    final ok = await _confirm(
+      title: 'Stop watching "${device.nickname}"?',
+      body: "You'll no longer see this device's location. They can always send a new request later if you change your mind.",
+      confirmLabel: 'Stop watching',
+    );
+    if (!ok) return;
+    await ref.read(consentRepositoryProvider).revokeConsent(consentId);
+    _invalidateDeviceDerivedProviders();
+  }
+
+  /// New capability -- see core/location_service.dart's doc comment. Manual fallback
+  /// for whenever the device wasn't pinged automatically (permission denied at
+  /// add-device time, or its position is just stale).
+  Future<void> _updateLocation(Device device) async {
+    final position = await getCurrentLocationOrNull();
+    if (!mounted) return;
+    if (position == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Couldn't get this device's current position -- check location permission/services.")),
+      );
+      return;
+    }
+    await ref
+        .read(devicesRepositoryForPeopleProvider)
+        .reportLocation(device.id, lat: position.latitude, lon: position.longitude, accuracyM: position.accuracy);
     _invalidateDeviceDerivedProviders();
   }
 
@@ -100,13 +178,28 @@ class _PeopleScreenState extends ConsumerState<PeopleScreen> {
                           title: 'Your devices',
                           children: myDevices.isEmpty
                               ? [const _EmptyText('No devices yet -- tap + Add to register your own device.')]
-                              : myDevices.map((dev) => _DeviceRow(device: dev)).toList(),
+                              : myDevices
+                                  .map((dev) => _DeviceRow(
+                                        device: dev,
+                                        isOwn: true,
+                                        onUpdateLocation: () => _updateLocation(dev),
+                                        onRemove: () => _removeOwnDevice(dev),
+                                      ))
+                                  .toList(),
                         ),
                         _Section(
                           title: "People you're watching",
                           children: watchedDevices.isEmpty
                               ? [const _EmptyText("Nobody yet -- tap + Add to request access to someone else's device.")]
-                              : watchedDevices.map((dev) => _DeviceRow(device: dev)).toList(),
+                              : watchedDevices.map((dev) {
+                                  final consent = userId != null ? d.activeConsentFor(dev, userId) : null;
+                                  return _DeviceRow(
+                                    device: dev,
+                                    isOwn: false,
+                                    onUpdateLocation: null,
+                                    onRemove: consent != null ? () => _revokeAccess(dev, consent.id) : null,
+                                  );
+                                }).toList(),
                         ),
                         if (d.outgoingPending.isNotEmpty)
                           _Section(
@@ -247,12 +340,34 @@ class _RequestRow extends StatelessWidget {
   }
 }
 
-class _DeviceRow extends StatelessWidget {
+enum _DeviceRowMenu { updateLocation, remove }
+
+class _DeviceRow extends StatefulWidget {
   final Device device;
-  const _DeviceRow({required this.device});
+  final bool isOwn;
+  final Future<void> Function()? onUpdateLocation;
+  final Future<void> Function()? onRemove;
+  const _DeviceRow({required this.device, required this.isOwn, this.onUpdateLocation, this.onRemove});
+
+  @override
+  State<_DeviceRow> createState() => _DeviceRowState();
+}
+
+class _DeviceRowState extends State<_DeviceRow> {
+  bool _busy = false;
+
+  Future<void> _run(Future<void> Function() action) async {
+    setState(() => _busy = true);
+    try {
+      await action();
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    final device = widget.device;
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(12),
@@ -296,6 +411,36 @@ class _DeviceRow extends StatelessWidget {
               child: const Text('📍', style: TextStyle(fontSize: 12)),
             ),
           ),
+          if (widget.onUpdateLocation != null || widget.onRemove != null) ...[
+            const SizedBox(width: 4),
+            _busy
+                ? const SizedBox(width: 26, height: 26, child: Center(child: SizedBox(height: 14, width: 14, child: CircularProgressIndicator(strokeWidth: 2))))
+                : PopupMenuButton<_DeviceRowMenu>(
+                    padding: EdgeInsets.zero,
+                    color: AppColors.surface2,
+                    icon: const Icon(Icons.more_vert, color: AppColors.ink3, size: 18),
+                    onSelected: (choice) {
+                      switch (choice) {
+                        case _DeviceRowMenu.updateLocation:
+                          if (widget.onUpdateLocation != null) _run(widget.onUpdateLocation!);
+                        case _DeviceRowMenu.remove:
+                          if (widget.onRemove != null) _run(widget.onRemove!);
+                      }
+                    },
+                    itemBuilder: (context) => [
+                      if (widget.onUpdateLocation != null)
+                        const PopupMenuItem(
+                          value: _DeviceRowMenu.updateLocation,
+                          child: Text('Update location', style: TextStyle(color: AppColors.ink, fontSize: 13)),
+                        ),
+                      if (widget.onRemove != null)
+                        PopupMenuItem(
+                          value: _DeviceRowMenu.remove,
+                          child: Text(widget.isOwn ? 'Remove device' : 'Stop watching', style: const TextStyle(color: AppColors.critical, fontSize: 13)),
+                        ),
+                    ],
+                  ),
+          ],
         ],
       ),
     );

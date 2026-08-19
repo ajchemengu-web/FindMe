@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/api/api_exception.dart';
+import '../../core/location_service.dart';
 import '../../theme/tokens.dart';
 import '../consent/consent_repository.dart';
 import 'devices_repository.dart';
@@ -39,9 +40,26 @@ class _AddDeviceScreenState extends ConsumerState<AddDeviceScreen> {
       _error = null;
     });
     try {
-      await DevicesRepository().createDevice(CreateDeviceInput(nickname: _nickname.text.trim(), isSelfOwned: true));
+      final repo = DevicesRepository();
+      final device = await repo.createDevice(CreateDeviceInput(nickname: _nickname.text.trim(), isSelfOwned: true));
+
+      // Best-effort: this is what actually makes the device show up on the Map --
+      // without a reported position there's nothing to plot. Never blocks on failure
+      // (permission denied, location services off, browser without geolocation) --
+      // the "Update location" button on the device row is the fallback.
+      final position = await getCurrentLocationOrNull();
+      if (position != null) {
+        try {
+          await repo.reportLocation(device.id, lat: position.latitude, lon: position.longitude, accuracyM: position.accuracy);
+        } catch (_) {}
+      }
+
       setState(() {
-        _doneMessage = "Since this is your own device, no consent request was needed -- it's tracked immediately.";
+        _doneMessage = position != null
+            ? "Since this is your own device, no consent request was needed -- it's tracked immediately, and its current position is already on the map."
+            : "Since this is your own device, no consent request was needed -- it's tracked immediately. We couldn't get its "
+                "current position just now (location permission or service may be off); use \"Update location\" on its row in "
+                "People & Devices whenever you're ready.";
         _step = _Step.done;
       });
     } catch (e) {

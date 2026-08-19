@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../theme/tokens.dart';
-
 /// Ported from findme_app/app/(app)/_layout.tsx -- six tabs mirroring the mockup's main
 /// sections. Emoji icons for now, same as the original (kept the dependency list
 /// minimal rather than pulling in an icon package).
+///
+/// Colors deliberately come from the ambient BottomNavigationBarTheme (set in
+/// theme/tokens.dart's _buildTheme, already light/dark-reactive) rather than a
+/// hardcoded AppColors reference -- individual tab screens may still force themselves
+/// dark (see app_router.dart's _ForcedDark) while they're un-migrated, but the shell
+/// chrome itself always follows the user's actual preference.
 class AppShell extends StatelessWidget {
   final StatefulNavigationShell navigationShell;
   const AppShell({super.key, required this.navigationShell});
@@ -25,9 +29,6 @@ class AppShell extends StatelessWidget {
       body: navigationShell,
       bottomNavigationBar: BottomNavigationBar(
         type: BottomNavigationBarType.fixed,
-        backgroundColor: AppColors.surface,
-        selectedItemColor: AppColors.accent,
-        unselectedItemColor: AppColors.ink3,
         selectedFontSize: 9,
         unselectedFontSize: 9,
         currentIndex: navigationShell.currentIndex,

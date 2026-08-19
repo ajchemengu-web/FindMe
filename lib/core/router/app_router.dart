@@ -15,6 +15,7 @@ import '../../features/geofence/add_geofence_screen.dart';
 import '../../features/intel/intel_screen.dart';
 import '../../features/map/map_screen.dart';
 import '../../features/privacy/privacy_screen.dart';
+import '../../theme/app_colors_data.dart';
 import '../../theme/tokens.dart';
 import 'app_shell.dart';
 import 'router_refresh_notifier.dart';
@@ -48,10 +49,10 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state, navigationShell) => AppShell(navigationShell: navigationShell),
         branches: [
           StatefulShellBranch(routes: [GoRoute(path: '/', builder: (context, state) => const SituationRoomScreen())]),
-          StatefulShellBranch(routes: [GoRoute(path: '/map', builder: (context, state) => const MapScreen())]),
-          StatefulShellBranch(routes: [GoRoute(path: '/intel', builder: (context, state) => const IntelScreen())]),
-          StatefulShellBranch(routes: [GoRoute(path: '/people', builder: (context, state) => const PeopleScreen())]),
-          StatefulShellBranch(routes: [GoRoute(path: '/alerts', builder: (context, state) => const AlertsScreen())]),
+          StatefulShellBranch(routes: [GoRoute(path: '/map', builder: (context, state) => const _ForcedDark(child: MapScreen()))]),
+          StatefulShellBranch(routes: [GoRoute(path: '/intel', builder: (context, state) => const _ForcedDark(child: IntelScreen()))]),
+          StatefulShellBranch(routes: [GoRoute(path: '/people', builder: (context, state) => const _ForcedDark(child: PeopleScreen()))]),
+          StatefulShellBranch(routes: [GoRoute(path: '/alerts', builder: (context, state) => const _ForcedDark(child: AlertsScreen()))]),
           StatefulShellBranch(routes: [GoRoute(path: '/privacy', builder: (context, state) => const PrivacyScreen())]),
         ],
       ),
@@ -61,11 +62,11 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/add-device',
-        pageBuilder: (context, state) => const MaterialPage(fullscreenDialog: true, child: AddDeviceScreen()),
+        pageBuilder: (context, state) => const MaterialPage(fullscreenDialog: true, child: _ForcedDark(child: AddDeviceScreen())),
       ),
       GoRoute(
         path: '/billing',
-        pageBuilder: (context, state) => const MaterialPage(fullscreenDialog: true, child: BillingScreen()),
+        pageBuilder: (context, state) => const MaterialPage(fullscreenDialog: true, child: _ForcedDark(child: BillingScreen())),
       ),
       GoRoute(
         path: '/add-geofence',
@@ -73,7 +74,9 @@ final routerProvider = Provider<GoRouter>((ref) {
           final extra = state.extra as Map<String, dynamic>?;
           return MaterialPage(
             fullscreenDialog: true,
-            child: AddGeofenceScreen(deviceId: extra?['deviceId'] as String?, nickname: extra?['nickname'] as String?),
+            child: _ForcedDark(
+              child: AddGeofenceScreen(deviceId: extra?['deviceId'] as String?, nickname: extra?['nickname'] as String?),
+            ),
           );
         },
       ),
@@ -84,8 +87,22 @@ final routerProvider = Provider<GoRouter>((ref) {
 class SplashScreen extends StatelessWidget {
   const SplashScreen({super.key});
   @override
-  Widget build(BuildContext context) => const Scaffold(
-        backgroundColor: AppColors.page,
-        body: Center(child: CircularProgressIndicator(color: AppColors.accent)),
+  Widget build(BuildContext context) => Scaffold(
+        backgroundColor: context.colors.page,
+        body: Center(child: CircularProgressIndicator(color: context.colors.accent)),
       );
+}
+
+/// Screens not yet migrated to the theme-reactive `context.colors` system (see
+/// theme/app_colors_data.dart's doc comment) still hardcode the original dark
+/// `AppColors` constants. Wrapping them here keeps them rendering consistently dark
+/// regardless of the user's light/dark preference, rather than picking up a
+/// light-themed InputDecoration/ElevatedButton theme (set globally) while their own
+/// hardcoded backgrounds and text stay dark -- avoids a half-light-half-dark screen.
+class _ForcedDark extends StatelessWidget {
+  final Widget child;
+  const _ForcedDark({required this.child});
+
+  @override
+  Widget build(BuildContext context) => Theme(data: buildDarkTheme(), child: child);
 }

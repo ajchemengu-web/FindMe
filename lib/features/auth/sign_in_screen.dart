@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../theme/app_colors_data.dart';
 import '../../theme/tokens.dart';
 import 'auth_controller.dart';
 import 'google_button/google_sign_in_button.dart';
@@ -10,6 +11,9 @@ import 'google_button/google_sign_in_button.dart';
 /// (brand mark front and center, like a proper landing/auth page) rather than the
 /// original's top-anchored form -- the RN layout made sense on a phone-width screen;
 /// this version also has to hold up centered on a wide web viewport.
+///
+/// Theme-reactive (migrated to `context.colors`) -- one of the first screens users
+/// see, so it respects the light/dark preference rather than forcing dark.
 class SignInScreen extends ConsumerStatefulWidget {
   const SignInScreen({super.key});
 
@@ -40,9 +44,10 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
   Widget build(BuildContext context) {
     final googleBusy = ref.watch(authControllerProvider).isLoading;
     final googleError = ref.watch(googleSignInErrorProvider);
+    final colors = context.colors;
 
     return Scaffold(
-      backgroundColor: AppColors.page,
+      backgroundColor: colors.page,
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
@@ -58,23 +63,23 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                   Container(
                     padding: const EdgeInsets.all(24),
                     decoration: BoxDecoration(
-                      color: AppColors.surface,
+                      color: colors.surface,
                       borderRadius: BorderRadius.circular(AppRadius.lg),
-                      border: Border.all(color: AppColors.line),
+                      border: Border.all(color: colors.line),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        const Text(
+                        Text(
                           'Welcome back',
                           textAlign: TextAlign.center,
-                          style: TextStyle(color: AppColors.ink, fontSize: 18, fontWeight: FontWeight.bold),
+                          style: TextStyle(color: colors.ink, fontSize: 18, fontWeight: FontWeight.bold),
                         ),
                         const SizedBox(height: 4),
-                        const Text(
+                        Text(
                           'Sign in to continue',
                           textAlign: TextAlign.center,
-                          style: TextStyle(color: AppColors.ink3, fontSize: 12.5),
+                          style: TextStyle(color: colors.ink3, fontSize: 12.5),
                         ),
                         const SizedBox(height: 22),
                         AbsorbPointer(
@@ -83,7 +88,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                         ),
                         if (googleError != null) ...[
                           const SizedBox(height: 8),
-                          Text(googleError, style: const TextStyle(color: AppColors.critical, fontSize: 12)),
+                          Text(googleError, style: TextStyle(color: colors.critical, fontSize: 12)),
                         ],
                         const SizedBox(height: 20),
                         const _OrDivider(),
@@ -104,7 +109,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                         ),
                         if (_error != null) ...[
                           const SizedBox(height: 10),
-                          Text(_error!, style: const TextStyle(color: AppColors.critical, fontSize: 12)),
+                          Text(_error!, style: TextStyle(color: colors.critical, fontSize: 12)),
                         ],
                         const SizedBox(height: 20),
                         ElevatedButton(
@@ -120,11 +125,11 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                   Center(
                     child: TextButton(
                       onPressed: () => context.go('/sign-up'),
-                      child: const Text.rich(
+                      child: Text.rich(
                         TextSpan(
                           text: 'New here? ',
-                          style: TextStyle(color: AppColors.ink3, fontSize: 12),
-                          children: [TextSpan(text: 'Create an account', style: TextStyle(color: AppColors.accent, fontWeight: FontWeight.bold))],
+                          style: TextStyle(color: colors.ink3, fontSize: 12),
+                          children: [TextSpan(text: 'Create an account', style: TextStyle(color: colors.accent, fontWeight: FontWeight.bold))],
                         ),
                       ),
                     ),
@@ -144,26 +149,27 @@ class _BrandMark extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     return Column(
       children: [
         Container(
           width: 64,
           height: 64,
           decoration: BoxDecoration(
-            color: AppColors.accent,
+            color: colors.accent,
             borderRadius: BorderRadius.circular(AppRadius.lg),
-            boxShadow: [BoxShadow(color: AppColors.accent.withValues(alpha: 0.35), blurRadius: 24, spreadRadius: -4)],
+            boxShadow: [BoxShadow(color: colors.accent.withValues(alpha: 0.35), blurRadius: 24, spreadRadius: -4)],
           ),
           alignment: Alignment.center,
-          child: const Text('FM', style: TextStyle(color: Color(0xFF04101F), fontWeight: FontWeight.bold, fontSize: 22)),
+          child: Text('FM', style: TextStyle(color: colors.brandMarkForeground, fontWeight: FontWeight.bold, fontSize: 22)),
         ),
         const SizedBox(height: 16),
-        const Text('FINDME', style: TextStyle(color: AppColors.ink, fontWeight: FontWeight.bold, fontSize: 22, letterSpacing: 4)),
+        Text('FINDME', style: TextStyle(color: colors.ink, fontWeight: FontWeight.bold, fontSize: 22, letterSpacing: 4)),
         const SizedBox(height: 6),
-        const Text(
+        Text(
           'SECURE ACCESS · CONSENT-FIRST TRACKING NETWORK',
           textAlign: TextAlign.center,
-          style: TextStyle(color: AppColors.ink3, fontSize: 10.5, letterSpacing: 1),
+          style: TextStyle(color: colors.ink3, fontSize: 10.5, letterSpacing: 1),
         ),
       ],
     );
@@ -175,14 +181,15 @@ class _OrDivider extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Row(
+    final colors = context.colors;
+    return Row(
       children: [
-        Expanded(child: Divider(color: AppColors.line)),
+        Expanded(child: Divider(color: colors.line)),
         Padding(
-          padding: EdgeInsets.symmetric(horizontal: 12),
-          child: Text('OR CONTINUE WITH EMAIL', style: TextStyle(color: AppColors.ink3, fontSize: 9.5, letterSpacing: 0.8)),
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: Text('OR CONTINUE WITH EMAIL', style: TextStyle(color: colors.ink3, fontSize: 9.5, letterSpacing: 0.8)),
         ),
-        Expanded(child: Divider(color: AppColors.line)),
+        Expanded(child: Divider(color: colors.line)),
       ],
     );
   }
@@ -196,7 +203,7 @@ class _FieldLabel extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 6),
-      child: Text(text.toUpperCase(), style: const TextStyle(color: AppColors.ink3, fontSize: 10.5, letterSpacing: 1)),
+      child: Text(text.toUpperCase(), style: TextStyle(color: context.colors.ink3, fontSize: 10.5, letterSpacing: 1)),
     );
   }
 }

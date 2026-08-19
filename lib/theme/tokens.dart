@@ -4,6 +4,8 @@
 // visually consistent with the design reference.
 import 'package:flutter/material.dart';
 
+import 'app_colors_data.dart';
+
 enum Severity { good, warning, serious, critical }
 
 enum DevicePrecision { owner, precise, city }
@@ -75,63 +77,75 @@ double spacing(double n) => n * 4;
 /// "iOS map styling doesn't match" known gap). See features/map for usage.
 const mapTileUrlDark = 'https://cartodb-basemaps-a.global.ssl.fastly.net/dark_all/{z}/{x}/{y}{r}.png';
 
-ThemeData buildAppTheme() {
-  final base = ThemeData.dark(useMaterial3: true);
+/// Builds a full ThemeData from an [AppColorsData] palette, with that palette attached
+/// as a ThemeExtension so migrated screens can read it via `context.colors`.
+/// Un-migrated screens still reference the old static `AppColors` dark constants
+/// directly and are wrapped in an explicit forced-dark Theme at the route level (see
+/// core/router/app_router.dart) so they keep rendering consistently regardless of the
+/// user's actual preference, rather than ending up with (say) light-themed buttons
+/// sitting on a hardcoded-dark page.
+ThemeData _buildTheme(AppColorsData colors, Brightness brightness) {
+  final base = brightness == Brightness.dark ? ThemeData.dark(useMaterial3: true) : ThemeData.light(useMaterial3: true);
   return base.copyWith(
-    scaffoldBackgroundColor: AppColors.page,
+    scaffoldBackgroundColor: colors.page,
     colorScheme: base.colorScheme.copyWith(
-      surface: AppColors.surface,
-      primary: AppColors.accent,
-      secondary: AppColors.accent,
-      error: AppColors.critical,
+      surface: colors.surface,
+      primary: colors.accent,
+      secondary: colors.accent,
+      error: colors.critical,
     ),
     textTheme: base.textTheme.apply(
-      bodyColor: AppColors.ink,
-      displayColor: AppColors.ink,
+      bodyColor: colors.ink,
+      displayColor: colors.ink,
       fontFamily: 'monospace',
     ),
-    appBarTheme: const AppBarTheme(
-      backgroundColor: AppColors.page,
-      foregroundColor: AppColors.ink,
+    appBarTheme: AppBarTheme(
+      backgroundColor: colors.page,
+      foregroundColor: colors.ink,
       elevation: 0,
     ),
     cardTheme: CardThemeData(
-      color: AppColors.surface,
+      color: colors.surface,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(AppRadius.lg),
-        side: const BorderSide(color: AppColors.hair),
+        side: BorderSide(color: colors.hair),
       ),
     ),
-    dividerTheme: const DividerThemeData(color: AppColors.line, thickness: 1),
+    dividerTheme: DividerThemeData(color: colors.line, thickness: 1),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
-      fillColor: AppColors.surface2,
+      fillColor: colors.surface2,
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(AppRadius.md),
-        borderSide: const BorderSide(color: AppColors.hair),
+        borderSide: BorderSide(color: colors.hair),
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(AppRadius.md),
-        borderSide: const BorderSide(color: AppColors.hair),
+        borderSide: BorderSide(color: colors.hair),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(AppRadius.md),
-        borderSide: const BorderSide(color: AppColors.accent),
+        borderSide: BorderSide(color: colors.accent),
       ),
-      hintStyle: const TextStyle(color: AppColors.ink3),
-      labelStyle: const TextStyle(color: AppColors.ink2),
+      hintStyle: TextStyle(color: colors.ink3),
+      labelStyle: TextStyle(color: colors.ink2),
     ),
     elevatedButtonTheme: ElevatedButtonThemeData(
       style: ElevatedButton.styleFrom(
-        backgroundColor: AppColors.accent,
-        foregroundColor: AppColors.ink,
+        backgroundColor: colors.accent,
+        foregroundColor: colors.brandMarkForeground,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.md)),
       ),
     ),
-    bottomNavigationBarTheme: const BottomNavigationBarThemeData(
-      backgroundColor: AppColors.surface,
-      selectedItemColor: AppColors.accent,
-      unselectedItemColor: AppColors.ink3,
+    bottomNavigationBarTheme: BottomNavigationBarThemeData(
+      backgroundColor: colors.surface,
+      selectedItemColor: colors.accent,
+      unselectedItemColor: colors.ink3,
     ),
+    extensions: [colors],
   );
 }
+
+ThemeData buildDarkTheme() => _buildTheme(AppColorsData.dark, Brightness.dark);
+
+ThemeData buildLightTheme() => _buildTheme(AppColorsData.light, Brightness.light);

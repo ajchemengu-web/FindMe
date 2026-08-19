@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../theme/app_colors_data.dart';
 import '../../theme/tokens.dart';
 import 'auth_controller.dart';
 
@@ -10,6 +11,7 @@ const _resendCooldownS = 60;
 
 /// Ported 1:1 from findme_app/app/verify-phone.tsx. Two-step modal: stage the number
 /// (POST /auth/phone/send-otp), then confirm the code (POST /auth/phone/confirm-otp).
+/// Theme-reactive -- only ever pushed from the (migrated) Privacy Center.
 class VerifyPhoneScreen extends ConsumerStatefulWidget {
   const VerifyPhoneScreen({super.key});
 
@@ -101,6 +103,7 @@ class _VerifyPhoneScreenState extends ConsumerState<VerifyPhoneScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     return Container(
       color: const Color(0xD9040608),
       alignment: Alignment.center,
@@ -110,9 +113,9 @@ class _VerifyPhoneScreenState extends ConsumerState<VerifyPhoneScreen> {
         child: Container(
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
-            color: AppColors.surface,
+            color: colors.surface,
             borderRadius: BorderRadius.circular(AppRadius.lg),
-            border: Border.all(color: AppColors.line),
+            border: Border.all(color: colors.line),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -120,42 +123,42 @@ class _VerifyPhoneScreenState extends ConsumerState<VerifyPhoneScreen> {
             children: [
               Row(
                 children: [
-                  const Expanded(
+                  Expanded(
                     child: Text(
                       'VERIFY PHONE NUMBER',
-                      style: TextStyle(color: AppColors.ink, fontWeight: FontWeight.bold, fontSize: 14, letterSpacing: 1),
+                      style: TextStyle(color: colors.ink, fontWeight: FontWeight.bold, fontSize: 14, letterSpacing: 1),
                     ),
                   ),
-                  IconButton(onPressed: () => Navigator.of(context).pop(), icon: const Icon(Icons.close, color: AppColors.ink3, size: 18)),
+                  IconButton(onPressed: () => Navigator.of(context).pop(), icon: Icon(Icons.close, color: colors.ink3, size: 18)),
                 ],
               ),
               const SizedBox(height: 4),
               if (!_codeStep) ...[
-                const Text(
+                Text(
                   "We'll text a one-time code to confirm this number. It's what people search for when they invite you "
                   'to watch their device, so it\'s worth getting right.',
-                  style: TextStyle(color: AppColors.ink2, fontSize: 12.5, height: 1.4),
+                  style: TextStyle(color: colors.ink2, fontSize: 12.5, height: 1.4),
                 ),
                 const SizedBox(height: 12),
-                _label('Phone number'),
+                _label(colors, 'Phone number'),
                 TextField(controller: _phone, decoration: const InputDecoration(hintText: '+1 555 010 1234'), keyboardType: TextInputType.phone),
-                if (_error != null) _errorText(),
+                if (_error != null) _errorText(colors),
                 const SizedBox(height: 12),
                 ElevatedButton(
                   onPressed: _submitting ? null : _onSendCode,
                   child: _submitting ? const _Spinner() : const Text('Send Code'),
                 ),
               ] else ...[
-                Text('Enter the code we sent to ${_phone.text}.', style: const TextStyle(color: AppColors.ink2, fontSize: 12.5, height: 1.4)),
+                Text('Enter the code we sent to ${_phone.text}.', style: TextStyle(color: colors.ink2, fontSize: 12.5, height: 1.4)),
                 const SizedBox(height: 12),
-                _label('6-digit code'),
+                _label(colors, '6-digit code'),
                 TextField(
                   controller: _code,
                   decoration: const InputDecoration(hintText: '123456'),
                   keyboardType: TextInputType.number,
                   maxLength: 8,
                 ),
-                if (_error != null) _errorText(),
+                if (_error != null) _errorText(colors),
                 const SizedBox(height: 4),
                 ElevatedButton(
                   onPressed: _submitting ? null : _onVerify,
@@ -171,13 +174,13 @@ class _VerifyPhoneScreenState extends ConsumerState<VerifyPhoneScreen> {
                         _code.clear();
                         _error = null;
                       }),
-                      child: const Text('Change number', style: TextStyle(color: AppColors.accent, fontSize: 12, fontWeight: FontWeight.w600)),
+                      child: Text('Change number', style: TextStyle(color: colors.accent, fontSize: 12, fontWeight: FontWeight.w600)),
                     ),
                     TextButton(
                       onPressed: (_cooldown > 0 || _submitting) ? null : _onSendCode,
                       child: Text(
                         _cooldown > 0 ? 'Resend in ${_cooldown}s' : 'Resend code',
-                        style: TextStyle(color: _cooldown > 0 ? AppColors.ink3 : AppColors.accent, fontSize: 12, fontWeight: FontWeight.w600),
+                        style: TextStyle(color: _cooldown > 0 ? colors.ink3 : colors.accent, fontSize: 12, fontWeight: FontWeight.w600),
                       ),
                     ),
                   ],
@@ -190,14 +193,14 @@ class _VerifyPhoneScreenState extends ConsumerState<VerifyPhoneScreen> {
     );
   }
 
-  Widget _label(String text) => Padding(
+  Widget _label(AppColorsData colors, String text) => Padding(
         padding: const EdgeInsets.only(bottom: 6),
-        child: Text(text.toUpperCase(), style: const TextStyle(color: AppColors.ink3, fontSize: 10.5, letterSpacing: 1)),
+        child: Text(text.toUpperCase(), style: TextStyle(color: colors.ink3, fontSize: 10.5, letterSpacing: 1)),
       );
 
-  Widget _errorText() => Padding(
+  Widget _errorText(AppColorsData colors) => Padding(
         padding: const EdgeInsets.only(top: 6),
-        child: Text(_error!, style: const TextStyle(color: AppColors.critical, fontSize: 12, height: 1.3)),
+        child: Text(_error!, style: TextStyle(color: colors.critical, fontSize: 12, height: 1.3)),
       );
 }
 
