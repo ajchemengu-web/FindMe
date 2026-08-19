@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/theme_mode_controller.dart';
 import '../../theme/app_colors_data.dart';
@@ -10,6 +12,15 @@ import '../billing/referrals_repository.dart';
 
 final referralsRepositoryProvider = Provider((ref) => ReferralsRepository());
 final referralStatsProvider = FutureProvider.autoDispose((ref) => ref.read(referralsRepositoryProvider).fetchStats());
+
+// The deployed web app's URL -- update here if the domain ever changes. Used to build
+// the invite link (with the referral code as a ?ref= param so following it is
+// one-tap, see sign_up_screen.dart's initialReferralCode).
+const _appUrl = 'https://find-me-five-flame.vercel.app';
+
+String _inviteMessage(String referralCode) =>
+    "Hey! I'm using FindMe -- a consent-first way to keep track of the people and devices I care about, "
+    "not a surveillance app. Join me: $_appUrl/sign-up?ref=$referralCode";
 
 /// Ported from findme_app/app/(app)/privacy.tsx's basics (profile summary, phone
 /// verification entry point, sign out), plus a Plan & Billing entry point (into the
@@ -91,6 +102,12 @@ class PrivacyScreen extends ConsumerWidget {
                     const SizedBox(height: 8),
                     Text('KES ${(r.pendingCommissionCents / 100).toStringAsFixed(0)} pending', style: TextStyle(color: colors.warning, fontSize: 11)),
                   ],
+                  const SizedBox(height: 14),
+                  Divider(color: colors.line, height: 1),
+                  const SizedBox(height: 14),
+                  Text('INVITE FRIENDS', style: TextStyle(color: colors.ink3, fontSize: 10, letterSpacing: 0.6)),
+                  const SizedBox(height: 8),
+                  _InviteButtons(referralCode: r.referralCode),
                 ],
               ),
             ),
@@ -154,6 +171,64 @@ class _ThemeModeSelector extends StatelessWidget {
               ),
             ),
           ),
+      ],
+    );
+  }
+}
+
+/// New -- the backend already tracked referrals (GET /referrals/stats) but there was
+/// no way to actually send someone your code. WhatsApp gets a direct deep link
+/// (wa.me, reliable and doesn't need the WhatsApp app installed -- falls back to
+/// WhatsApp Web); Instagram and TikTok don't offer a public way to open a chat with
+/// pre-filled text via a plain link the way WhatsApp does, so those go through the
+/// device's own share sheet instead (share_plus) -- it lists whichever apps are
+/// actually installed and able to receive shared text, Instagram/TikTok included when
+/// present, same mechanism every other "Share to..." button on your phone uses.
+class _InviteButtons extends StatelessWidget {
+  final String referralCode;
+  const _InviteButtons({required this.referralCode});
+
+  Future<void> _openWhatsApp() async {
+    final text = Uri.encodeComponent(_inviteMessage(referralCode));
+    await launchUrl(Uri.parse('https://wa.me/?text=$text'), mode: LaunchMode.externalApplication);
+  }
+
+  Future<void> _openShareSheet() async {
+    await SharePlus.instance.share(ShareParams(text: _inviteMessage(referralCode)));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: _openWhatsApp,
+                style: OutlinedButton.styleFrom(side: const BorderSide(color: Color(0xFF25D366)), padding: const EdgeInsets.symmetric(vertical: 10)),
+                icon: const Icon(Icons.chat, color: Color(0xFF25D366), size: 16),
+                label: const Text('WhatsApp', style: TextStyle(color: Color(0xFF25D366), fontSize: 12, fontWeight: FontWeight.w600)),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: _openShareSheet,
+                style: OutlinedButton.styleFrom(side: BorderSide(color: colors.accent), padding: const EdgeInsets.symmetric(vertical: 10)),
+                icon: Icon(Icons.share, color: colors.accent, size: 16),
+                label: Text('More', style: TextStyle(color: colors.accent, fontSize: 12, fontWeight: FontWeight.w600)),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        Text(
+          '"More" opens your device\'s share sheet -- Instagram and TikTok will show up there if installed.',
+          style: TextStyle(color: colors.ink3, fontSize: 10, height: 1.3),
+        ),
       ],
     );
   }

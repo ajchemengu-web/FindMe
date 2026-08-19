@@ -58,9 +58,15 @@ class AuthController extends AsyncNotifier<AppUser?> {
     }
   }
 
-  Future<String?> signUp({required String email, required String username, required String phone, required String password}) async {
+  Future<String?> signUp({
+    required String email,
+    required String username,
+    required String phone,
+    required String password,
+    String? referralCode,
+  }) async {
     try {
-      final user = await _repo.signUp(SignUpInput(email: email, username: username, phone: phone, password: password));
+      final user = await _repo.signUp(SignUpInput(email: email, username: username, phone: phone, password: password, referralCode: referralCode));
       state = AsyncData(user);
       return null;
     } on ApiException catch (e) {

@@ -15,7 +15,12 @@ List<Color> _strengthColors(AppColorsData c) => [c.critical, c.critical, c.warni
 /// strength meter (core/password_strength.dart mirrors lib/passwordStrength.ts exactly).
 /// Theme-reactive, same as sign_in_screen.dart.
 class SignUpScreen extends ConsumerStatefulWidget {
-  const SignUpScreen({super.key});
+  /// Prefilled from a shared invite link's `?ref=` query param (see app_router.dart)
+  /// so following someone's invite is actually one-tap -- previously the backend
+  /// accepted a referral code at signup but nothing in the UI ever exposed a way to
+  /// enter one, so referral tracking was dead on the client side.
+  final String? initialReferralCode;
+  const SignUpScreen({super.key, this.initialReferralCode});
 
   @override
   ConsumerState<SignUpScreen> createState() => _SignUpScreenState();
@@ -26,6 +31,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
   final _email = TextEditingController();
   final _phone = TextEditingController();
   final _password = TextEditingController();
+  late final TextEditingController _referralCode;
   bool _ack = false;
   String? _error;
   bool _submitting = false;
@@ -34,6 +40,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
   void initState() {
     super.initState();
     _password.addListener(() => setState(() {}));
+    _referralCode = TextEditingController(text: widget.initialReferralCode ?? '');
   }
 
   bool get _canSubmit =>
@@ -62,6 +69,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
           username: _username.text.trim(),
           phone: _phone.text.trim(),
           password: _password.text,
+          referralCode: _referralCode.text.trim().isEmpty ? null : _referralCode.text.trim(),
         );
     if (!mounted) return;
     setState(() {
@@ -154,6 +162,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                         style: TextStyle(color: colors.ink3, fontSize: 11, height: 1.3),
                       ),
                     ),
+                  _field(colors, 'Referral code (optional)', _referralCode, hint: 'e.g. ALI4X9K'),
                   InkWell(
                     onTap: () => setState(() => _ack = !_ack),
                     borderRadius: BorderRadius.circular(AppRadius.md),

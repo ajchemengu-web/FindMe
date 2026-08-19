@@ -68,14 +68,22 @@ class AppRadius {
 
 double spacing(double n) => n * 4;
 
-/// Dark tile-layer styling for the map (flutter_map / raster tiles), replacing
+/// Tile-layer sources for the map (flutter_map / raster tiles), replacing
 /// theme/tokens.ts's mapStyleDark (a Google Maps JSON style array). flutter_map has no
 /// concept of a JSON map style since it renders raster/vector tiles directly, so instead
-/// we use a dark tile provider (CartoDB Dark Matter) and apply a ColorFilter tuned to
-/// this palette so the look matches on iOS, Android, AND web identically -- unlike the
-/// RN app, which could only apply mapStyleDark on Android (see findme_app/README.md's
-/// "iOS map styling doesn't match" known gap). See features/map for usage.
+/// we use CartoDB's basemap tiles directly -- dark_all matches this look on iOS,
+/// Android, AND web identically (the RN app could only apply its dark style on
+/// Android; see findme_app/README.md's "iOS map styling doesn't match" known gap).
+///
+/// light_all is CARTO's Positron-family counterpart -- same tile provider/design
+/// family as dark_all (so it stays visually coherent with the rest of the app rather
+/// than switching providers), used when the map is shown in light mode: a permanently
+/// dark map read as low-clarity/low-contrast for anyone who prefers a light interface,
+/// and until this the Map screen ignored the user's theme preference entirely. Both
+/// verified directly against CARTO's tile server before use (real PNG responses, not
+/// guessed).
 const mapTileUrlDark = 'https://cartodb-basemaps-a.global.ssl.fastly.net/dark_all/{z}/{x}/{y}{r}.png';
+const mapTileUrlLight = 'https://cartodb-basemaps-a.global.ssl.fastly.net/light_all/{z}/{x}/{y}{r}.png';
 
 /// Builds a full ThemeData from an [AppColorsData] palette, with that palette attached
 /// as a ThemeExtension so migrated screens can read it via `context.colors`.

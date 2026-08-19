@@ -9,7 +9,8 @@ class SignUpInput {
   final String username;
   final String phone;
   final String password;
-  SignUpInput({required this.email, required this.username, required this.phone, required this.password});
+  final String? referralCode;
+  SignUpInput({required this.email, required this.username, required this.phone, required this.password, this.referralCode});
 }
 
 /// Ported 1:1 from findme_app/lib/auth.tsx's non-React logic (the request-building and
@@ -38,6 +39,7 @@ class AuthRepository {
         'phone': normalizePhone(input.phone),
         'display_name': input.username,
         'password': input.password,
+        if (input.referralCode != null && input.referralCode!.trim().isNotEmpty) 'referral_code': input.referralCode!.trim().toUpperCase(),
       },
     );
     await TokenStore.instance.set(

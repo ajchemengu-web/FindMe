@@ -44,12 +44,15 @@ final routerProvider = Provider<GoRouter>((ref) {
     routes: [
       GoRoute(path: '/splash', builder: (context, state) => const SplashScreen()),
       GoRoute(path: '/sign-in', builder: (context, state) => const SignInScreen()),
-      GoRoute(path: '/sign-up', builder: (context, state) => const SignUpScreen()),
+      GoRoute(
+        path: '/sign-up',
+        builder: (context, state) => SignUpScreen(initialReferralCode: state.uri.queryParameters['ref']),
+      ),
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) => AppShell(navigationShell: navigationShell),
         branches: [
           StatefulShellBranch(routes: [GoRoute(path: '/', builder: (context, state) => const SituationRoomScreen())]),
-          StatefulShellBranch(routes: [GoRoute(path: '/map', builder: (context, state) => const _ForcedDark(child: MapScreen()))]),
+          StatefulShellBranch(routes: [GoRoute(path: '/map', builder: (context, state) => const MapScreen())]),
           StatefulShellBranch(routes: [GoRoute(path: '/intel', builder: (context, state) => const _ForcedDark(child: IntelScreen()))]),
           StatefulShellBranch(routes: [GoRoute(path: '/people', builder: (context, state) => const _ForcedDark(child: PeopleScreen()))]),
           StatefulShellBranch(routes: [GoRoute(path: '/alerts', builder: (context, state) => const _ForcedDark(child: AlertsScreen()))]),

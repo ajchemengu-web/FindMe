@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../../core/models/models.dart';
+import '../../theme/app_colors_data.dart';
 import '../../theme/tokens.dart';
 import '../devices/devices_repository.dart';
 import 'map_repository.dart';
@@ -23,38 +24,42 @@ final mapDataProvider = FutureProvider.autoDispose<MapData>((ref) async {
   return MapData(devices: results[0] as List<VisibleDeviceLocation>, zones: results[1] as List<ThreatZoneGeo>);
 });
 
-Color _severityColor(String severity) => switch (severity) {
-      'critical' => AppColors.critical,
-      'serious' => AppColors.serious,
-      _ => AppColors.warning,
+Color _severityColor(AppColorsData c, String severity) => switch (severity) {
+      'critical' => c.critical,
+      'serious' => c.serious,
+      _ => c.warning,
     };
 
-Color _precisionColor(String level) => switch (level) {
-      'owner' => AppColors.accent,
-      'precise' => AppColors.good,
-      _ => AppColors.warning,
+Color _precisionColor(AppColorsData c, String level) => switch (level) {
+      'owner' => c.accent,
+      'precise' => c.good,
+      _ => c.warning,
     };
+
+// CartoDB's raster tiles are natively sharp up to zoom 19 (confirmed against the live
+// tile server); a couple of levels beyond that the server still returns valid tiles
+// (over-zoomed/upscaled), which is normal map-app behavior for inspecting an exact pin
+// position closely -- letting the camera go a bit past native resolution rather than
+// hard-stopping at it.
+const _minZoom = 2.0;
+const _maxNativeZoom = 19;
+const _maxZoom = 21.0;
 
 /// Ported from findme_app/app/(app)/map.tsx, adapted from react-native-maps to
-/// flutter_map: a dark CartoDB tile layer instead of a Google Maps JSON style (renders
+/// flutter_map: a CartoDB tile layer instead of a Google Maps JSON style (renders
 /// identically on iOS/Android/Web, unlike the RN app where iOS fell back to plain Apple
 /// Maps styling -- see findme_app/README.md's "known gaps"), and a bottom info card in
 /// place of a marker Callout bubble (flutter_map has no built-in callout widget).
+///
+/// Theme-reactive -- previously forced dark regardless of the user's preference, which
+/// also meant no light, high-contrast option existed for anyone who found a
+/// permanently dark map hard to read.
 class MapScreen extends ConsumerStatefulWidget {
   const MapScreen({super.key});
 
   @override
   ConsumerState<MapScreen> createState() => _MapScreenState();
 }
-
-// CartoDB's dark_all raster tiles are natively sharp up to zoom 19 (confirmed against
-// the live tile server); a couple of levels beyond that the server still returns valid
-// tiles (over-zoomed/upscaled), which is normal map-app behavior for inspecting an
-// exact pin position closely -- letting the camera go a bit past native resolution
-// rather than hard-stopping at it.
-const _minZoom = 2.0;
-const _maxNativeZoom = 19;
-const _maxZoom = 21.0;
 
 class _MapScreenState extends ConsumerState<MapScreen> {
   final _mapController = MapController();
@@ -104,9 +109,13 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   @override
   Widget build(BuildContext context) {
     final data = ref.watch(mapDataProvider);
+    final colors = context.colors;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final tileUrl = isDark ? mapTileUrlDark : mapTileUrlLight;
+    final overlayBg = colors.surface.withValues(alpha: 0.92);
 
     return Scaffold(
-      backgroundColor: AppColors.page,
+      backgroundColor: colors.page,
       body: SafeArea(
         child: Column(
           children: [
@@ -115,27 +124,27 @@ class _MapScreenState extends ConsumerState<MapScreen> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text('🌐 Global Threat Map', style: TextStyle(color: AppColors.ink, fontWeight: FontWeight.bold, fontSize: 16, letterSpacing: 1)),
+                  Text('🌐 Global Threat Map', style: TextStyle(color: colors.ink, fontWeight: FontWeight.bold, fontSize: 16, letterSpacing: 1)),
                   IconButton(
                     onPressed: data.isLoading ? null : () => ref.invalidate(mapDataProvider),
                     icon: data.isLoading
-                        ? const SizedBox(height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.accent))
-                        : const Icon(Icons.refresh, color: AppColors.ink2, size: 18),
-                    style: IconButton.styleFrom(side: const BorderSide(color: AppColors.line), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.sm))),
+                        ? SizedBox(height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2, color: colors.accent))
+                        : Icon(Icons.refresh, color: colors.ink2, size: 18),
+                    style: IconButton.styleFrom(side: BorderSide(color: colors.line), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.sm))),
                   ),
                 ],
               ),
             ),
             Expanded(
               child: data.when(
-                loading: () => const Center(child: CircularProgressIndicator(color: AppColors.accent)),
+                loading: () => Center(child: CircularProgressIndicator(color: colors.accent)),
                 error: (e, _) => Center(
                   child: Padding(
                     padding: const EdgeInsets.all(24),
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Text('$e', textAlign: TextAlign.center, style: const TextStyle(color: AppColors.critical, fontSize: 13, height: 1.4)),
+                        Text('$e', textAlign: TextAlign.center, style: TextStyle(color: colors.critical, fontSize: 13, height: 1.4)),
                         const SizedBox(height: 14),
                         ElevatedButton(onPressed: () => ref.invalidate(mapDataProvider), child: const Text('Retry')),
                       ],
@@ -160,7 +169,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                         ),
                         children: [
                           TileLayer(
-                            urlTemplate: mapTileUrlDark,
+                            urlTemplate: tileUrl,
                             userAgentPackageName: 'com.findme.findme_flutter',
                             // Fetches sharp @2x tiles on high-DPI screens instead of
                             // upscaled 1x ones -- the urlTemplate's {r} placeholder was
@@ -179,8 +188,8 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                                   point: LatLng(z.lat, z.lon),
                                   radius: (z.radiusKm ?? 25) * 1000,
                                   useRadiusInMeter: true,
-                                  color: _severityColor(z.severity).withValues(alpha: 0.18),
-                                  borderColor: _severityColor(z.severity),
+                                  color: _severityColor(colors, z.severity).withValues(alpha: 0.18),
+                                  borderColor: _severityColor(colors, z.severity),
                                   borderStrokeWidth: 1.5,
                                 ),
                               if (_selected != null)
@@ -189,8 +198,8 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                                     point: LatLng(g.lat, g.lon),
                                     radius: g.radiusM,
                                     useRadiusInMeter: true,
-                                    color: AppColors.accent.withValues(alpha: 0.16),
-                                    borderColor: AppColors.accent,
+                                    color: colors.accent.withValues(alpha: 0.16),
+                                    borderColor: colors.accent,
                                     borderStrokeWidth: 1.5,
                                   ),
                             ],
@@ -204,7 +213,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                                   height: 28,
                                   child: GestureDetector(
                                     onTap: () => _selectDevice(dev),
-                                    child: Icon(Icons.location_on, color: _precisionColor(dev.precisionLevel), size: 28),
+                                    child: Icon(Icons.location_on, color: _precisionColor(colors, dev.precisionLevel), size: 28),
                                   ),
                                 ),
                             ],
@@ -218,7 +227,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                         right: 16,
                         top: 0,
                         bottom: 0,
-                        child: Center(child: _ZoomControls(onZoomIn: () => _zoomBy(1), onZoomOut: () => _zoomBy(-1))),
+                        child: Center(child: _ZoomControls(background: overlayBg, onZoomIn: () => _zoomBy(1), onZoomOut: () => _zoomBy(-1))),
                       ),
                       if (d.devices.isEmpty && d.zones.isEmpty)
                         Positioned(
@@ -228,14 +237,14 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                           child: Container(
                             padding: const EdgeInsets.all(14),
                             decoration: BoxDecoration(
-                              color: const Color(0xEB14181D),
+                              color: overlayBg,
                               borderRadius: BorderRadius.circular(AppRadius.md),
-                              border: Border.all(color: AppColors.line),
+                              border: Border.all(color: colors.line),
                             ),
-                            child: const Text(
+                            child: Text(
                               'Nothing to plot yet -- devices need at least one reported position (see People & Devices), and threat zones need the conflict-events ingest run with a real API key configured.',
                               textAlign: TextAlign.center,
-                              style: TextStyle(color: AppColors.ink3, fontSize: 12, height: 1.4),
+                              style: TextStyle(color: colors.ink3, fontSize: 12, height: 1.4),
                             ),
                           ),
                         ),
@@ -244,10 +253,10 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                           left: 16,
                           right: 16,
                           bottom: 16,
-                          child: _DeviceInfoCard(device: _selected!),
+                          child: _DeviceInfoCard(device: _selected!, background: overlayBg),
                         )
                       else
-                        const Positioned(bottom: 16, left: 16, child: _Legend()),
+                        Positioned(bottom: 16, left: 16, child: _Legend(background: overlayBg)),
                     ],
                   );
                 },
@@ -265,23 +274,21 @@ class _MapScreenState extends ConsumerState<MapScreen> {
 /// precise trackpad), and there was no visible affordance suggesting the map could be
 /// zoomed in further than wherever the initial auto-fit landed.
 class _ZoomControls extends StatelessWidget {
+  final Color background;
   final VoidCallback onZoomIn;
   final VoidCallback onZoomOut;
-  const _ZoomControls({required this.onZoomIn, required this.onZoomOut});
+  const _ZoomControls({required this.background, required this.onZoomIn, required this.onZoomOut});
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     return Container(
-      decoration: BoxDecoration(
-        color: const Color(0xEB14181D),
-        borderRadius: BorderRadius.circular(AppRadius.md),
-        border: Border.all(color: AppColors.line),
-      ),
+      decoration: BoxDecoration(color: background, borderRadius: BorderRadius.circular(AppRadius.md), border: Border.all(color: colors.line)),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           _ZoomButton(icon: Icons.add, onTap: onZoomIn),
-          Container(height: 1, color: AppColors.line),
+          Container(height: 1, color: colors.line),
           _ZoomButton(icon: Icons.remove, onTap: onZoomOut),
         ],
       ),
@@ -298,17 +305,19 @@ class _ZoomButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return InkWell(
       onTap: onTap,
-      child: SizedBox(width: 36, height: 36, child: Icon(icon, color: AppColors.ink2, size: 18)),
+      child: SizedBox(width: 36, height: 36, child: Icon(icon, color: context.colors.ink2, size: 18)),
     );
   }
 }
 
 class _DeviceInfoCard extends StatelessWidget {
   final VisibleDeviceLocation device;
-  const _DeviceInfoCard({required this.device});
+  final Color background;
+  const _DeviceInfoCard({required this.device, required this.background});
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     final label = switch (device.precisionLevel) {
       'owner' => 'Your device',
       'precise' => 'Precise location (consented)',
@@ -316,20 +325,16 @@ class _DeviceInfoCard extends StatelessWidget {
     };
     return Container(
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: const Color(0xEB14181D),
-        borderRadius: BorderRadius.circular(AppRadius.md),
-        border: Border.all(color: AppColors.line),
-      ),
+      decoration: BoxDecoration(color: background, borderRadius: BorderRadius.circular(AppRadius.md), border: Border.all(color: colors.line)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(device.nickname, style: const TextStyle(color: AppColors.ink, fontWeight: FontWeight.bold, fontSize: 13)),
+          Text(device.nickname, style: TextStyle(color: colors.ink, fontWeight: FontWeight.bold, fontSize: 13)),
           const SizedBox(height: 3),
-          Text(label, style: const TextStyle(color: AppColors.ink2, fontSize: 11)),
+          Text(label, style: TextStyle(color: colors.ink2, fontSize: 11)),
           const SizedBox(height: 3),
-          Text('Updated ${DateFormat.yMMMd().add_jm().format(device.recordedAt)}', style: const TextStyle(color: AppColors.ink3, fontSize: 10)),
+          Text('Updated ${DateFormat.yMMMd().add_jm().format(device.recordedAt)}', style: TextStyle(color: colors.ink3, fontSize: 10)),
         ],
       ),
     );
@@ -337,25 +342,23 @@ class _DeviceInfoCard extends StatelessWidget {
 }
 
 class _Legend extends StatelessWidget {
-  const _Legend();
+  final Color background;
+  const _Legend({required this.background});
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     return Container(
       padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: const Color(0xEB14181D),
-        borderRadius: BorderRadius.circular(AppRadius.md),
-        border: Border.all(color: AppColors.line),
-      ),
+      decoration: BoxDecoration(color: background, borderRadius: BorderRadius.circular(AppRadius.md), border: Border.all(color: colors.line)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
-        children: const [
-          _LegendRow(color: AppColors.accent, label: 'Your device'),
-          _LegendRow(color: AppColors.good, label: 'Precise consent'),
-          _LegendRow(color: AppColors.warning, label: 'City-level consent'),
-          _LegendRow(color: AppColors.critical, label: 'Critical zone'),
+        children: [
+          _LegendRow(color: colors.accent, label: 'Your device'),
+          _LegendRow(color: colors.good, label: 'Precise consent'),
+          _LegendRow(color: colors.warning, label: 'City-level consent'),
+          _LegendRow(color: colors.critical, label: 'Critical zone'),
         ],
       ),
     );
@@ -376,7 +379,7 @@ class _LegendRow extends StatelessWidget {
         children: [
           Container(width: 8, height: 8, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
           const SizedBox(width: 7),
-          Text(label, style: const TextStyle(color: AppColors.ink2, fontSize: 10.5)),
+          Text(label, style: TextStyle(color: context.colors.ink2, fontSize: 10.5)),
         ],
       ),
     );
