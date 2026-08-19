@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../features/alerts/alerts_screen.dart';
 import '../../features/auth/auth_controller.dart';
+import '../../features/billing/billing_screen.dart';
 import '../../features/auth/sign_in_screen.dart';
 import '../../features/auth/sign_up_screen.dart';
 import '../../features/auth/verify_phone_screen.dart';
@@ -61,6 +62,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/add-device',
         pageBuilder: (context, state) => const MaterialPage(fullscreenDialog: true, child: AddDeviceScreen()),
+      ),
+      GoRoute(
+        path: '/billing',
+        pageBuilder: (context, state) => const MaterialPage(fullscreenDialog: true, child: BillingScreen()),
       ),
       GoRoute(
         path: '/add-geofence',
