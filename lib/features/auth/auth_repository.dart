@@ -1,5 +1,5 @@
 import '../../core/api/api_client.dart';
-import '../../core/api/api_exception.dart';
+import '../../core/api/error_message.dart';
 import '../../core/api/token_store.dart';
 import '../../core/models/user.dart';
 import '../../core/phone.dart';
@@ -93,10 +93,8 @@ class AuthRepository {
     try {
       await _api.request('/auth/phone/send-otp', method: 'POST', body: {'phone': normalizePhone(phone)});
       return null;
-    } on ApiException catch (e) {
-      return e.message;
-    } catch (_) {
-      return 'Failed to send verification code.';
+    } catch (e) {
+      return describeError(e, fallback: 'Failed to send verification code. Please try again.');
     }
   }
 
@@ -110,10 +108,8 @@ class AuthRepository {
         body: {'phone': normalizePhone(phone), 'code': code.trim()},
       );
       return null;
-    } on ApiException catch (e) {
-      return e.message;
-    } catch (_) {
-      return 'Failed to verify code.';
+    } catch (e) {
+      return describeError(e, fallback: 'Failed to verify code. Please try again.');
     }
   }
 
@@ -143,10 +139,8 @@ class AuthRepository {
         body: {'current_password': currentPassword, 'new_password': newPassword},
       );
       return null;
-    } on ApiException catch (e) {
-      return e.message;
-    } catch (_) {
-      return 'Failed to change password.';
+    } catch (e) {
+      return describeError(e, fallback: 'Failed to change password. Please try again.');
     }
   }
 }

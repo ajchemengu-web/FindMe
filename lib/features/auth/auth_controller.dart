@@ -1,7 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
-import '../../core/api/api_exception.dart';
+import '../../core/api/error_message.dart';
 import '../../core/api/token_store.dart';
 import '../../core/models/user.dart';
 import 'auth_repository.dart';
@@ -53,7 +53,7 @@ class AuthController extends AsyncNotifier<AppUser?> {
       final user = await _repo.signInWithGoogle(idToken);
       state = AsyncData(user);
     } catch (e) {
-      ref.read(googleSignInErrorProvider.notifier).state = e is ApiException ? e.message : 'Google sign-in failed.';
+      ref.read(googleSignInErrorProvider.notifier).state = describeError(e, fallback: 'Google sign-in failed.');
       state = AsyncData(state.valueOrNull);
     }
   }
@@ -69,20 +69,23 @@ class AuthController extends AsyncNotifier<AppUser?> {
       final user = await _repo.signUp(SignUpInput(email: email, username: username, phone: phone, password: password, referralCode: referralCode));
       state = AsyncData(user);
       return null;
-    } on ApiException catch (e) {
-      return e.message;
-    } catch (_) {
-      return 'Something went wrong signing up.';
+    } catch (e) {
+      return describeError(e, fallback: 'Something went wrong signing up. Please try again.');
     }
   }
 
+  /// Only genuinely wrong credentials get the "invalid ... or password" message now --
+  /// a network failure, a timeout, or the backend waking up from an idle spin-down
+  /// (Render's free tier) each get their own distinct, honest message via
+  /// describeError() instead of collapsing into "you typed the wrong password", which
+  /// was actively misleading whenever the real cause was anything else.
   Future<String?> signIn(String identifier, String password) async {
     try {
       final user = await _repo.signIn(identifier, password);
       state = AsyncData(user);
       return null;
-    } catch (_) {
-      return 'Invalid email, username, phone, or password.';
+    } catch (e) {
+      return describeError(e, fallback: 'Something went wrong signing in. Please try again.');
     }
   }
 
@@ -102,10 +105,8 @@ class AuthController extends AsyncNotifier<AppUser?> {
       final user = await _repo.updateProfile(displayName: displayName, username: username, email: email);
       state = AsyncData(user);
       return null;
-    } on ApiException catch (e) {
-      return e.message;
-    } catch (_) {
-      return 'Something went wrong updating your profile.';
+    } catch (e) {
+      return describeError(e, fallback: 'Something went wrong updating your profile. Please try again.');
     }
   }
 }
