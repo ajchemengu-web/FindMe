@@ -124,33 +124,42 @@ class _AddDeviceScreenState extends ConsumerState<AddDeviceScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      color: const Color(0xD9040608),
-      alignment: Alignment.center,
-      padding: const EdgeInsets.all(20),
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 440, maxHeight: 640),
-        child: Container(
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: AppColors.surface,
-            borderRadius: BorderRadius.circular(AppRadius.lg),
-            border: Border.all(color: AppColors.line),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
-                children: [
-                  const Expanded(
-                    child: Text('ADD TO WATCH LIST', style: TextStyle(color: AppColors.ink, fontWeight: FontWeight.bold, fontSize: 14, letterSpacing: 1)),
-                  ),
-                  IconButton(onPressed: () => Navigator.of(context).pop(), icon: const Icon(Icons.close, color: AppColors.ink3, size: 18)),
-                ],
-              ),
-              Flexible(child: SingleChildScrollView(child: _buildStep())),
-            ],
+    // This is a bare fullscreenDialog page (see app_router.dart's '/add-device' route),
+    // not a Scaffold -- which normally supplies the Material ancestor ink effects need.
+    // _ChoiceCard/_ScopeOption below use InkWell directly (not a self-contained Material
+    // button like ElevatedButton), so without this wrapper any tap crashes with "No
+    // Material widget found." `type: transparency` means it paints nothing of its own,
+    // just provides the ink layer.
+    return Material(
+      type: MaterialType.transparency,
+      child: Container(
+        color: const Color(0xD9040608),
+        alignment: Alignment.center,
+        padding: const EdgeInsets.all(20),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 440, maxHeight: 640),
+          child: Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(AppRadius.lg),
+              border: Border.all(color: AppColors.line),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    const Expanded(
+                      child: Text('ADD TO WATCH LIST', style: TextStyle(color: AppColors.ink, fontWeight: FontWeight.bold, fontSize: 14, letterSpacing: 1)),
+                    ),
+                    IconButton(onPressed: () => Navigator.of(context).pop(), icon: const Icon(Icons.close, color: AppColors.ink3, size: 18)),
+                  ],
+                ),
+                Flexible(child: SingleChildScrollView(child: _buildStep())),
+              ],
+            ),
           ),
         ),
       ),
