@@ -21,6 +21,7 @@ from app.core.security import (
     generate_refresh_token,
     hash_password,
     hash_token,
+    validate_password_strength,
     verify_password,
 )
 from app.models.referral import Referral
@@ -106,6 +107,49 @@ async def signup(
 
     await db.flush()
     return user
+
+
+async def update_profile(
+    db: AsyncSession,
+    user: User,
+    *,
+    display_name: str | None = None,
+    avatar_url: str | None = None,
+    username: str | None = None,
+    email: str | None = None,
+) -> User:
+    """Same uniqueness constraints as signup() -- case-insensitive, excluding the
+    caller's own current row (so re-submitting your own unchanged username/email isn't
+    rejected as "already taken")."""
+    if username is not None and username.lower() != user.username.lower():
+        existing = await db.scalar(select(User.id).where(User.username.ilike(username), User.id != user.id))
+        if existing is not None:
+            raise AuthError("That username is already taken.")
+        user.username = username
+
+    if email is not None and email.lower() != user.email.lower():
+        existing = await db.scalar(select(User.id).where(func.lower(User.email) == email.lower(), User.id != user.id))
+        if existing is not None:
+            raise AuthError("An account with that email already exists.")
+        user.email = email.lower()
+
+    if display_name is not None:
+        user.display_name = display_name
+    if avatar_url is not None:
+        user.avatar_url = avatar_url
+
+    await db.flush()
+    return user
+
+
+async def change_password(db: AsyncSession, user: User, *, current_password: str, new_password: str) -> None:
+    if not verify_password(current_password, user.hashed_password):
+        raise AuthError("Current password is incorrect.")
+    problems = validate_password_strength(new_password)
+    if problems:
+        raise AuthError("; ".join(problems))
+    user.hashed_password = hash_password(new_password)
+    await db.flush()
 
 
 async def authenticate(db: AsyncSession, identifier: str, password: str) -> User:

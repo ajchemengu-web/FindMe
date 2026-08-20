@@ -95,6 +95,19 @@ class AuthController extends AsyncNotifier<AppUser?> {
     final user = await _repo.loadProfile();
     state = AsyncData(user);
   }
+
+  /// Returns an error message on failure, null (and updates state) on success.
+  Future<String?> updateProfile({String? displayName, String? username, String? email}) async {
+    try {
+      final user = await _repo.updateProfile(displayName: displayName, username: username, email: email);
+      state = AsyncData(user);
+      return null;
+    } on ApiException catch (e) {
+      return e.message;
+    } catch (_) {
+      return 'Something went wrong updating your profile.';
+    }
+  }
 }
 
 final authControllerProvider = AsyncNotifierProvider<AuthController, AppUser?>(AuthController.new);

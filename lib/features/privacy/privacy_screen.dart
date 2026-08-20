@@ -51,6 +51,21 @@ class PrivacyScreen extends ConsumerWidget {
             const SizedBox(height: 16),
             ListTile(
               contentPadding: EdgeInsets.zero,
+              title: Text('Edit profile', style: TextStyle(color: colors.ink, fontSize: 13)),
+              subtitle: Text('Display name, username, email', style: TextStyle(color: colors.ink3, fontSize: 11)),
+              trailing: Icon(Icons.chevron_right, color: colors.ink3),
+              onTap: () => context.push('/edit-profile'),
+            ),
+            Divider(color: colors.line, height: 1),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              title: Text('Change password', style: TextStyle(color: colors.ink, fontSize: 13)),
+              trailing: Icon(Icons.chevron_right, color: colors.ink3),
+              onTap: () => context.push('/change-password'),
+            ),
+            Divider(color: colors.line, height: 1),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
               title: Text('Phone verification', style: TextStyle(color: colors.ink, fontSize: 13)),
               subtitle: Text(
                 user.phoneVerified ? 'Verified · ${user.phone ?? ''}' : 'Not verified',
@@ -66,6 +81,13 @@ class PrivacyScreen extends ConsumerWidget {
               subtitle: Text('${user.planTier[0].toUpperCase()}${user.planTier.substring(1)} plan', style: TextStyle(color: colors.ink3, fontSize: 11)),
               trailing: Icon(Icons.chevron_right, color: colors.ink3),
               onTap: () => context.push('/billing'),
+            ),
+            Divider(color: colors.line, height: 1),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              title: Text('Privacy Policy', style: TextStyle(color: colors.ink, fontSize: 13)),
+              trailing: Icon(Icons.chevron_right, color: colors.ink3),
+              onTap: () => context.push('/privacy-policy'),
             ),
             Divider(color: colors.line, height: 1),
           ],

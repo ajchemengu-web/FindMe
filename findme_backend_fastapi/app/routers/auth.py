@@ -8,6 +8,7 @@ from fastapi import APIRouter, HTTPException, status
 from app.core.security import validate_password_strength
 from app.deps import CurrentUser, DbSession
 from app.schemas.auth import (
+    ChangePasswordRequest,
     ConfirmPhoneOtpRequest,
     GoogleSignInRequest,
     LoginRequest,
@@ -108,13 +109,33 @@ async def me(current_user: CurrentUser) -> UserOut:
 
 @router.patch("/me", response_model=UserOut)
 async def update_me(payload: UpdateProfileRequest, current_user: CurrentUser, db: DbSession) -> UserOut:
-    if payload.display_name is not None:
-        current_user.display_name = payload.display_name
-    if payload.avatar_url is not None:
-        current_user.avatar_url = payload.avatar_url
-    await db.commit()
+    try:
+        await auth_service.update_profile(
+            db,
+            current_user,
+            display_name=payload.display_name,
+            avatar_url=payload.avatar_url,
+            username=payload.username,
+            email=payload.email,
+        )
+        await db.commit()
+    except auth_service.AuthError as exc:
+        await db.rollback()
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc))
     await db.refresh(current_user)
     return UserOut.model_validate(current_user)
+
+
+@router.post("/change-password", status_code=status.HTTP_204_NO_CONTENT)
+async def change_password(payload: ChangePasswordRequest, current_user: CurrentUser, db: DbSession) -> None:
+    try:
+        await auth_service.change_password(
+            db, current_user, current_password=payload.current_password, new_password=payload.new_password
+        )
+        await db.commit()
+    except auth_service.AuthError as exc:
+        await db.rollback()
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc))
 
 
 @router.post("/phone/send-otp", status_code=status.HTTP_204_NO_CONTENT)

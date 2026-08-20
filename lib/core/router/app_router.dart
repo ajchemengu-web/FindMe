@@ -14,6 +14,9 @@ import '../../features/devices/situation_room_screen.dart';
 import '../../features/geofence/add_geofence_screen.dart';
 import '../../features/intel/intel_screen.dart';
 import '../../features/map/map_screen.dart';
+import '../../features/privacy/change_password_screen.dart';
+import '../../features/privacy/edit_profile_screen.dart';
+import '../../features/privacy/privacy_policy_screen.dart';
 import '../../features/privacy/privacy_screen.dart';
 import '../../theme/app_colors_data.dart';
 import '../../theme/tokens.dart';
@@ -83,6 +86,15 @@ final routerProvider = Provider<GoRouter>((ref) {
           );
         },
       ),
+      GoRoute(
+        path: '/edit-profile',
+        pageBuilder: (context, state) => const MaterialPage(fullscreenDialog: true, child: EditProfileScreen()),
+      ),
+      GoRoute(
+        path: '/change-password',
+        pageBuilder: (context, state) => const MaterialPage(fullscreenDialog: true, child: ChangePasswordScreen()),
+      ),
+      GoRoute(path: '/privacy-policy', builder: (context, state) => const PrivacyPolicyScreen()),
     ],
   );
 });

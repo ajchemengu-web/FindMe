@@ -117,15 +117,36 @@ class AuthRepository {
     }
   }
 
-  Future<AppUser> updateProfile({String? displayName, String? avatarUrl}) async {
+  Future<AppUser> updateProfile({String? displayName, String? avatarUrl, String? username, String? email}) async {
     final json = await _api.request<Map<String, dynamic>>(
       '/auth/me',
       method: 'PATCH',
       body: {
         if (displayName != null) 'display_name': displayName,
         if (avatarUrl != null) 'avatar_url': avatarUrl,
+        if (username != null) 'username': username,
+        if (email != null) 'email': email,
       },
     );
     return AppUser.fromJson(json!);
+  }
+
+  /// Returns an error message on failure (wrong current password, weak new one, etc.),
+  /// null on success -- same shape as sendPhoneVerification/confirmPhoneVerification
+  /// above, for the same reason (screens show the message directly, no exception
+  /// handling needed at the call site).
+  Future<String?> changePassword({required String currentPassword, required String newPassword}) async {
+    try {
+      await _api.request(
+        '/auth/change-password',
+        method: 'POST',
+        body: {'current_password': currentPassword, 'new_password': newPassword},
+      );
+      return null;
+    } on ApiException catch (e) {
+      return e.message;
+    } catch (_) {
+      return 'Failed to change password.';
+    }
   }
 }

@@ -52,10 +52,18 @@ class UserOut(BaseModel):
 
 
 class UpdateProfileRequest(BaseModel):
-    # Mirrors the old `grant update (display_name, avatar_url)` allowlist -- these are
-    # the only two fields this endpoint accepts, full stop.
+    # display_name/avatar_url mirror the old `grant update` allowlist. username/email
+    # are new -- both go through auth_service.update_profile()'s uniqueness checks
+    # (same constraints signup() enforces) before being applied.
     display_name: str | None = None
     avatar_url: str | None = None
+    username: str | None = Field(default=None, min_length=3, max_length=32, pattern=r"^[a-zA-Z0-9_.]+$")
+    email: EmailStr | None = None
+
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str
 
 
 class SendPhoneOtpRequest(BaseModel):
