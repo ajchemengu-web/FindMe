@@ -74,7 +74,15 @@ class _AddGeofenceScreenState extends State<AddGeofenceScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    // This is a bare fullscreenDialog page (see app_router.dart's '/add-geofence' route),
+    // not a Scaffold -- which normally supplies the Material ancestor TextField needs for
+    // its input decoration/selection handles. Without this wrapper, tapping into either
+    // TextField in _buildBody() below crashes with "No Material widget found."
+    // `type: transparency` means it paints nothing of its own, just provides the ancestor
+    // the fields need.
+    return Material(
+      type: MaterialType.transparency,
+      child: Container(
       color: const Color(0xD9040608),
       alignment: Alignment.center,
       padding: const EdgeInsets.all(20),
@@ -107,6 +115,7 @@ class _AddGeofenceScreenState extends State<AddGeofenceScreen> {
             ],
           ),
         ),
+      ),
       ),
     );
   }

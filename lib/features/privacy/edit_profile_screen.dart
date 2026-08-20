@@ -6,8 +6,9 @@ import '../../theme/tokens.dart';
 import '../auth/auth_controller.dart';
 
 /// Display name, username, and email -- the fields update_profile() actually accepts.
-/// Same fullscreenDialog-modal shape as verify_phone_screen.dart (no InkWell used here,
-/// so this doesn't need the Material-ancestor wrapper add_device_screen.dart needed).
+/// Same fullscreenDialog-modal shape as verify_phone_screen.dart -- needs the same
+/// Material-ancestor wrapper add_device_screen.dart needed, since its TextFields require
+/// one too (not just InkWell).
 class EditProfileScreen extends ConsumerStatefulWidget {
   const EditProfileScreen({super.key});
 
@@ -71,7 +72,14 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    return Container(
+    // This is a bare fullscreenDialog page (see app_router.dart's '/edit-profile' route),
+    // not a Scaffold -- which normally supplies the Material ancestor TextField needs for
+    // its input decoration/selection handles. Without this wrapper, tapping into any of the
+    // three TextFields below crashes with "No Material widget found." `type: transparency`
+    // means it paints nothing of its own, just provides the ancestor the fields need.
+    return Material(
+      type: MaterialType.transparency,
+      child: Container(
       color: const Color(0xD9040608),
       alignment: Alignment.center,
       padding: const EdgeInsets.all(20),
@@ -119,6 +127,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
             ],
           ),
         ),
+      ),
       ),
     );
   }
