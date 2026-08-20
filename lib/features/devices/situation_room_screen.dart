@@ -19,7 +19,13 @@ class SituationRoomData {
   final List<ThreatZoneGeo> zones;
   final int deviceCount;
   final int unreadAlertCount;
-  SituationRoomData({required this.zones, required this.deviceCount, required this.unreadAlertCount});
+  final List<VisibleDeviceLocation> deviceLocations;
+  SituationRoomData({
+    required this.zones,
+    required this.deviceCount,
+    required this.unreadAlertCount,
+    required this.deviceLocations,
+  });
 }
 
 const _severityRank = {'critical': 2, 'serious': 1, 'warning': 0};
@@ -29,15 +35,18 @@ final situationRoomProvider = FutureProvider.autoDispose<SituationRoomData>((ref
     ref.read(mapRepositoryProvider).fetchThreatZonesGeo(),
     ref.read(devicesRepositoryProvider).listDevices(),
     ref.read(alertsRepositoryProvider).fetchAlerts(limit: 100),
+    ref.read(mapRepositoryProvider).fetchVisibleDeviceLocations(),
   ]);
   final zones = (results[0] as List<ThreatZoneGeo>).toList()
     ..sort((a, b) => (_severityRank[b.severity] ?? 0).compareTo(_severityRank[a.severity] ?? 0));
   final devices = results[1] as List<Device>;
   final alerts = results[2] as List<Alert>;
+  final deviceLocations = results[3] as List<VisibleDeviceLocation>;
   return SituationRoomData(
     zones: zones.take(20).toList(),
     deviceCount: devices.length,
     unreadAlertCount: alerts.where((a) => !a.read).length,
+    deviceLocations: deviceLocations,
   );
 });
 
@@ -62,24 +71,35 @@ class SituationRoomScreen extends ConsumerWidget {
             slivers: [
               SliverToBoxAdapter(
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(18, 8, 18, 12),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
+                  padding: const EdgeInsets.fromLTRB(18, 8, 18, 0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text('FINDME', style: TextStyle(color: colors.ink, fontWeight: FontWeight.bold, fontSize: 16, letterSpacing: 2)),
-                            Text(
-                              'Situation Room${user != null ? ' · ${user.displayName ?? user.username}' : ''}',
-                              style: TextStyle(color: colors.ink3, fontSize: 11, letterSpacing: 1),
-                            ),
-                          ],
-                        ),
+                      Text('FINDME', style: TextStyle(color: colors.ink, fontWeight: FontWeight.bold, fontSize: 16, letterSpacing: 2)),
+                      Text(
+                        'Situation Room${user != null ? ' · ${user.displayName ?? user.username}' : ''}',
+                        style: TextStyle(color: colors.ink3, fontSize: 11, letterSpacing: 1),
                       ),
-                      const RotatingGlobe(size: 64),
                     ],
+                  ),
+                ),
+              ),
+              // The globe is the dominant, center-stage visual on this screen -- matches
+              // the original findme_situation_room_mockup.html, where #globeStage is
+              // `position:absolute; inset:0` filling its whole panel, not a small corner
+              // icon. Renders (and spins) immediately with whatever data.valueOrNull has
+              // -- empty marker lists on first paint before the fetch resolves, same as
+              // the rest of this screen tolerating a loading gap.
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(18, 12, 18, 4),
+                sliver: SliverToBoxAdapter(
+                  child: SizedBox(
+                    height: 340,
+                    child: RotatingGlobe(
+                      zones: data.valueOrNull?.zones ?? const [],
+                      devices: data.valueOrNull?.deviceLocations ?? const [],
+                      onTap: () => context.go('/map'),
+                    ),
                   ),
                 ),
               ),
