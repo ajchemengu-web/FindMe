@@ -1,9 +1,13 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:latlong2/latlong.dart';
 
+import '../../core/directions_service.dart';
+import '../../core/location_service.dart';
 import '../../core/models/models.dart';
 import '../../theme/app_colors_data.dart';
 import '../../theme/tokens.dart';
@@ -11,6 +15,8 @@ import '../devices/devices_repository.dart';
 import 'map_repository.dart';
 
 final mapRepositoryProvider = Provider((ref) => MapRepository());
+
+const _searchDebounce = Duration(milliseconds: 500);
 
 class MapData {
   final List<VisibleDeviceLocation> devices;
@@ -63,9 +69,25 @@ class MapScreen extends ConsumerStatefulWidget {
 
 class _MapScreenState extends ConsumerState<MapScreen> {
   final _mapController = MapController();
+  final _searchController = TextEditingController();
   VisibleDeviceLocation? _selected;
   List<Geofence> _geofences = [];
   bool _fitted = false;
+
+  List<PlacePrediction> _predictions = [];
+  bool _searching = false;
+  Timer? _searchDebounceTimer;
+  DirectionsResult? _route;
+  bool _routeLoading = false;
+  String? _routeError;
+  bool _stepsExpanded = false;
+
+  @override
+  void dispose() {
+    _searchDebounceTimer?.cancel();
+    _searchController.dispose();
+    super.dispose();
+  }
 
   Future<void> _selectDevice(VisibleDeviceLocation d) async {
     setState(() => _selected = d);
@@ -80,6 +102,67 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   void _clearSelection() => setState(() {
         _selected = null;
         _geofences = [];
+      });
+
+  void _onSearchChanged(String text) {
+    _searchDebounceTimer?.cancel();
+    if (text.trim().length < 2) {
+      setState(() => _predictions = []);
+      return;
+    }
+    _searchDebounceTimer = Timer(_searchDebounce, () async {
+      setState(() => _searching = true);
+      try {
+        final results = await DirectionsService.instance.searchPlaces(
+          text,
+          near: LatLng(_mapController.camera.center.latitude, _mapController.camera.center.longitude),
+        );
+        if (mounted) setState(() => _predictions = results);
+      } catch (_) {
+        if (mounted) setState(() => _predictions = []);
+      } finally {
+        if (mounted) setState(() => _searching = false);
+      }
+    });
+  }
+
+  Future<void> _selectPrediction(PlacePrediction prediction) async {
+    setState(() {
+      _predictions = [];
+      _searchController.text = prediction.displayName;
+      _routeError = null;
+      _routeLoading = true;
+    });
+    try {
+      final position = await getCurrentLocationOrNull();
+      if (position == null) {
+        setState(() => _routeError = 'Couldn\'t read your current location -- check location permission is granted.');
+        return;
+      }
+      final origin = LatLng(position.latitude, position.longitude);
+      final result = await DirectionsService.instance.getDirections(origin, prediction);
+      if (!mounted) return;
+      setState(() => _route = result);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _mapController.fitCamera(CameraFit.coordinates(
+          coordinates: result.route,
+          padding: const EdgeInsets.fromLTRB(60, 120, 60, 260),
+        ));
+      });
+    } catch (e) {
+      if (mounted) setState(() => _routeError = '$e');
+    } finally {
+      if (mounted) setState(() => _routeLoading = false);
+    }
+  }
+
+  void _clearRoute() => setState(() {
+        _route = null;
+        _routeError = null;
+        _stepsExpanded = false;
+        _searchController.clear();
+        _predictions = [];
       });
 
   void _fitToData(MapData data) {
@@ -218,6 +301,25 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                                 ),
                             ],
                           ),
+                          if (_route != null) ...[
+                            PolylineLayer(polylines: [
+                              Polyline(points: _route!.route, color: colors.accent, strokeWidth: 4),
+                            ]),
+                            MarkerLayer(markers: [
+                              Marker(
+                                point: _route!.route.first,
+                                width: 26,
+                                height: 26,
+                                child: Icon(Icons.my_location, color: colors.good, size: 24),
+                              ),
+                              Marker(
+                                point: _route!.destination,
+                                width: 32,
+                                height: 32,
+                                child: Icon(Icons.location_on, color: colors.accent, size: 32),
+                              ),
+                            ]),
+                          ],
                         ],
                       ),
                       // Right-center rather than a corner -- the bottom is already
@@ -229,9 +331,9 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                         bottom: 0,
                         child: Center(child: _ZoomControls(background: overlayBg, onZoomIn: () => _zoomBy(1), onZoomOut: () => _zoomBy(-1))),
                       ),
-                      if (d.devices.isEmpty && d.zones.isEmpty)
+                      if (d.devices.isEmpty && d.zones.isEmpty && _route == null)
                         Positioned(
-                          top: 16,
+                          top: 72,
                           left: 16,
                           right: 16,
                           child: Container(
@@ -248,7 +350,62 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                             ),
                           ),
                         ),
-                      if (_selected != null)
+                      Positioned(
+                        top: 8,
+                        left: 16,
+                        right: 16,
+                        child: _SearchBar(
+                          controller: _searchController,
+                          predictions: _predictions,
+                          searching: _searching,
+                          background: overlayBg,
+                          onChanged: _onSearchChanged,
+                          onSelect: _selectPrediction,
+                          onClear: _route != null || _searchController.text.isNotEmpty ? _clearRoute : null,
+                        ),
+                      ),
+                      if (_routeLoading)
+                        Positioned(
+                          left: 16,
+                          right: 16,
+                          bottom: 16,
+                          child: _InfoBar(background: overlayBg, child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: colors.accent)),
+                              const SizedBox(width: 10),
+                              Text('Getting directions…', style: TextStyle(color: colors.ink2, fontSize: 12)),
+                            ],
+                          )),
+                        )
+                      else if (_routeError != null)
+                        Positioned(
+                          left: 16,
+                          right: 16,
+                          bottom: 16,
+                          child: _InfoBar(
+                            background: overlayBg,
+                            borderColor: colors.critical,
+                            child: Row(children: [
+                              Expanded(child: Text(_routeError!, style: TextStyle(color: colors.critical, fontSize: 12, height: 1.3))),
+                              GestureDetector(onTap: () => setState(() => _routeError = null), child: Icon(Icons.close, color: colors.ink3, size: 16)),
+                            ]),
+                          ),
+                        )
+                      else if (_route != null)
+                        Positioned(
+                          left: 16,
+                          right: 16,
+                          bottom: 16,
+                          child: _RouteCard(
+                            route: _route!,
+                            background: overlayBg,
+                            expanded: _stepsExpanded,
+                            onToggleExpanded: () => setState(() => _stepsExpanded = !_stepsExpanded),
+                            onClear: _clearRoute,
+                          ),
+                        )
+                      else if (_selected != null)
                         Positioned(
                           left: 16,
                           right: 16,
@@ -306,6 +463,210 @@ class _ZoomButton extends StatelessWidget {
     return InkWell(
       onTap: onTap,
       child: SizedBox(width: 36, height: 36, child: Icon(icon, color: context.colors.ink2, size: 18)),
+    );
+  }
+}
+
+/// The Google-Maps-style "search a place" bar pinned to the top of the map. Debounced
+/// Nominatim lookups feed a dropdown of predictions; picking one hands off to
+/// _MapScreenState._selectPrediction to actually fetch a route.
+class _SearchBar extends StatelessWidget {
+  final TextEditingController controller;
+  final List<PlacePrediction> predictions;
+  final bool searching;
+  final Color background;
+  final ValueChanged<String> onChanged;
+  final ValueChanged<PlacePrediction> onSelect;
+  final VoidCallback? onClear;
+
+  const _SearchBar({
+    required this.controller,
+    required this.predictions,
+    required this.searching,
+    required this.background,
+    required this.onChanged,
+    required this.onSelect,
+    required this.onClear,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    return Column(
+      children: [
+        Container(
+          height: 44,
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          decoration: BoxDecoration(color: background, borderRadius: BorderRadius.circular(AppRadius.pill), border: Border.all(color: colors.line)),
+          child: Row(
+            children: [
+              Icon(Icons.search, color: colors.ink3, size: 16),
+              const SizedBox(width: 8),
+              Expanded(
+                child: TextField(
+                  controller: controller,
+                  onChanged: onChanged,
+                  style: TextStyle(color: colors.ink, fontSize: 13),
+                  decoration: InputDecoration(
+                    hintText: 'Search a place to get directions',
+                    hintStyle: TextStyle(color: colors.ink3, fontSize: 13),
+                    border: InputBorder.none,
+                    isCollapsed: true,
+                  ),
+                ),
+              ),
+              if (searching) SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: colors.accent)),
+              if (onClear != null)
+                GestureDetector(onTap: onClear, child: Padding(padding: const EdgeInsets.only(left: 8), child: Icon(Icons.close, color: colors.ink3, size: 16))),
+            ],
+          ),
+        ),
+        if (predictions.isNotEmpty)
+          Container(
+            margin: const EdgeInsets.only(top: 6),
+            constraints: const BoxConstraints(maxHeight: 220),
+            decoration: BoxDecoration(color: background, borderRadius: BorderRadius.circular(AppRadius.md), border: Border.all(color: colors.line)),
+            child: ListView.separated(
+              shrinkWrap: true,
+              padding: EdgeInsets.zero,
+              itemCount: predictions.length,
+              separatorBuilder: (_, _) => Container(height: 1, color: colors.line),
+              itemBuilder: (context, i) {
+                final p = predictions[i];
+                return InkWell(
+                  onTap: () => onSelect(p),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    child: Text(p.displayName, style: TextStyle(color: colors.ink, fontSize: 12.5), maxLines: 2, overflow: TextOverflow.ellipsis),
+                  ),
+                );
+              },
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _InfoBar extends StatelessWidget {
+  final Color background;
+  final Color? borderColor;
+  final Widget child;
+  const _InfoBar({required this.background, this.borderColor, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        border: Border.all(color: borderColor ?? context.colors.line),
+      ),
+      child: child,
+    );
+  }
+}
+
+/// Route summary (destination, distance, ETA) with an expandable turn-by-turn list --
+/// same shape as the Expo app's route card in app/(app)/map.tsx, translated to Dart.
+class _RouteCard extends StatelessWidget {
+  final DirectionsResult route;
+  final Color background;
+  final bool expanded;
+  final VoidCallback onToggleExpanded;
+  final VoidCallback onClear;
+
+  const _RouteCard({
+    required this.route,
+    required this.background,
+    required this.expanded,
+    required this.onToggleExpanded,
+    required this.onClear,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    return Container(
+      padding: const EdgeInsets.all(14),
+      constraints: const BoxConstraints(maxHeight: 340),
+      decoration: BoxDecoration(color: background, borderRadius: BorderRadius.circular(AppRadius.md), border: Border.all(color: colors.line)),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(route.destinationName, style: TextStyle(color: colors.ink, fontWeight: FontWeight.bold, fontSize: 14), maxLines: 1, overflow: TextOverflow.ellipsis),
+                    const SizedBox(height: 2),
+                    Text('${route.distanceText} · ${route.durationText} · driving', style: TextStyle(color: colors.accent, fontSize: 12, fontWeight: FontWeight.w600)),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 10),
+              OutlinedButton(
+                onPressed: onClear,
+                style: OutlinedButton.styleFrom(side: BorderSide(color: colors.line), padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6)),
+                child: Text('Clear', style: TextStyle(color: colors.ink2, fontSize: 11, fontWeight: FontWeight.w600)),
+              ),
+            ],
+          ),
+          if (route.steps.isNotEmpty)
+            GestureDetector(
+              onTap: onToggleExpanded,
+              child: Padding(
+                padding: const EdgeInsets.only(top: 10),
+                child: Text(
+                  expanded ? 'Hide steps ▲' : 'Show turn-by-turn ▼',
+                  style: TextStyle(color: colors.accent, fontSize: 11.5, fontWeight: FontWeight.w600),
+                ),
+              ),
+            ),
+          if (expanded)
+            Flexible(
+              child: ListView.separated(
+                shrinkWrap: true,
+                padding: const EdgeInsets.only(top: 8),
+                itemCount: route.steps.length,
+                separatorBuilder: (_, _) => const SizedBox(height: 10),
+                itemBuilder: (context, i) {
+                  final s = route.steps[i];
+                  return Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        width: 18,
+                        height: 18,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(color: colors.line, shape: BoxShape.circle),
+                        child: Text('${i + 1}', style: TextStyle(color: colors.ink2, fontSize: 10, fontWeight: FontWeight.bold)),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(s.instruction, style: TextStyle(color: colors.ink2, fontSize: 12, height: 1.3)),
+                            const SizedBox(height: 2),
+                            Text(
+                              '${s.distanceMeters >= 1000 ? '${(s.distanceMeters / 1000).toStringAsFixed(1)} km' : '${s.distanceMeters.round()} m'} · ${(s.durationSeconds / 60).round()} min',
+                              style: TextStyle(color: colors.ink3, fontSize: 10.5),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              ),
+            ),
+        ],
+      ),
     );
   }
 }
